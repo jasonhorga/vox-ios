@@ -41,6 +41,12 @@ final class HistoryManager {
         loadItems()
     }
     
+    /// 仅供测试使用的初始化方法，允许注入自定义 UserDefaults
+    init(defaults: UserDefaults) {
+        self.defaults = defaults
+        loadItems()
+    }
+    
     // MARK: - 公开方法
     
     /// 添加一条历史记录

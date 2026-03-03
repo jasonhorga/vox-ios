@@ -68,6 +68,22 @@ targets:
     dependencies:
       - target: VoxInputKeyboard
 
+  VoxInputTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: VoxInputTests
+        excludes:
+          - "**/.DS_Store"
+    dependencies:
+      - target: VoxInput
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.jasonhorga.voxinput.tests
+        GENERATE_INFOPLIST_FILE: true
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/VoxInput.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/VoxInput"
+        BUNDLE_LOADER: "$(TEST_HOST)"
+
   VoxInputKeyboard:
     type: app-extension
     platform: iOS
@@ -95,3 +111,13 @@ targets:
         keychain-access-groups:
           - "$(AppIdentifierPrefix)com.jasonhorga.voxinput.shared"
         com.apple.security.network.client: true
+
+schemes:
+  VoxInput:
+    build:
+      targets:
+        VoxInput: all
+        VoxInputTests: [test]
+    test:
+      targets:
+        - VoxInputTests
