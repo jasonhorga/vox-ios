@@ -23,6 +23,7 @@ targets:
       - path: VoxInput
         excludes:
           - "**/.DS_Store"
+          - "Info.plist"
       - path: Shared
         excludes:
           - "**/.DS_Store"
@@ -38,6 +39,7 @@ targets:
         CODE_SIGN_ENTITLEMENTS: VoxInput/VoxInput.entitlements
         ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES: true
     info:
+      path: VoxInput/Info.plist
       properties:
         CFBundleName: "Vox Input"
         CFBundleDisplayName: "Vox Input"
@@ -104,6 +106,7 @@ targets:
         CODE_SIGN_ENTITLEMENTS: VoxInputKeyboard/VoxInputKeyboard.entitlements
         SKIP_INSTALL: true
     info:
+      path: VoxInputKeyboard/Info.plist
       properties:
         CFBundleName: "VoxInputKeyboard"
         CFBundleDisplayName: "Vox Keyboard"
