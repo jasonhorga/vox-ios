@@ -54,16 +54,14 @@ jobs:
 
       - name: Find Simulator
         run: |
-          SIM=$(xcrun simctl list devices available -j | python3 -c "
-import sys, json
-d = json.load(sys.stdin)
+          SIM=$(xcrun simctl list devices available -j | python3 -c "import sys,json; d=json.load(sys.stdin); found='';
 for runtime in sorted(d['devices'].keys(), reverse=True):
-    if 'iOS-17' in runtime or 'iOS-18' in runtime or 'iOS' in runtime:
-        for dev in d['devices'][runtime]:
-            if 'iPhone' in dev['name'] and dev['isAvailable']:
-                print(dev['udid'])
-                exit()
-")
+  if 'iOS' in runtime:
+    for dev in d['devices'][runtime]:
+      if 'iPhone' in dev['name'] and dev.get('isAvailable'):
+        found=dev['udid']; break
+    if found: break
+print(found)")
           echo "SIMULATOR_UDID=$SIM" >> $GITHUB_ENV
           echo "Using: $SIM"
 
