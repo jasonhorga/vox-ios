@@ -2,7 +2,7 @@
 // VoxInput
 //
 // 全局状态管理 + Pipeline 编排
-// 录音 → ASR → TextFormatter → ClipboardOutput
+// 录音 → ASR → PostProcessor(翻译) → TextFormatter → ClipboardOutput
 
 import Foundation
 import Observation
@@ -57,6 +57,9 @@ final class AppState {
     
     // MARK: - 录音控制
     
+    /// 历史记录管理器
+    let historyManager = HistoryManager.shared
+    
     /// 开始录音
     /// - 检查权限 → 触觉反馈 → 启动录音 → 开始静音检测
     func startRecording() async {
@@ -77,6 +80,13 @@ final class AppState {
             
             // 设置静音检测回调
             audioRecorder.silenceDetector.onSilenceTimeout = { [weak self] in
+                Task { @MainActor [weak self] in
+                    await self?.stopRecording()
+                }
+            }
+            
+            // 设置超时自动停止回调（最长 60 秒）
+            audioRecorder.onMaxDurationReached = { [weak self] in
                 Task { @MainActor [weak self] in
                     await self?.stopRecording()
                 }
@@ -139,7 +149,7 @@ final class AppState {
     // MARK: - 处理 Pipeline
     
     /// 执行完整的处理 pipeline
-    /// 录音文件 → ASR 转写 → 文本格式化 → 剪贴板输出
+    /// 录音文件 → ASR 转写 → 翻译后处理 → 文本格式化 → 剪贴板输出
     private func processPipeline(audioURL: URL) async {
         defer {
             // 清理临时文件
@@ -147,22 +157,39 @@ final class AppState {
         }
         
         do {
-            // 步骤 1：检查网络
-            guard networkMonitor.isConnected else {
-                throw VoxError.networkUnavailable
-            }
+            // 步骤 1：ASR 转写（支持离线降级）
+            statusMessage = networkMonitor.isConnected ? "正在识别语音..." : "离线识别中..."
+            let rawText = try await ASRFactory.transcribe(
+                audioURL: audioURL,
+                config: config,
+                networkAvailable: networkMonitor.isConnected
+            )
             
-            // 步骤 2：ASR 转写
-            statusMessage = "正在识别语音..."
-            let rawText = try await ASRFactory.transcribe(audioURL: audioURL, config: config)
+            // 步骤 2：翻译后处理（仅在线且非 .none 模式时）
+            var processedText = rawText
+            let translationMode = config.translationMode
+            if translationMode != .none && networkMonitor.isConnected {
+                statusMessage = "正在翻译..."
+                processedText = try await PostProcessor.process(
+                    text: rawText,
+                    mode: translationMode,
+                    config: config
+                )
+            }
             
             // 步骤 3：文本格式化
             statusMessage = "正在格式化..."
-            let formattedText = TextFormatter.format(rawText)
+            let formattedText = TextFormatter.format(processedText)
             
             // 步骤 4：写入剪贴板
             statusMessage = "正在复制..."
             try ClipboardOutput.copy(formattedText)
+            
+            // 步骤 5：保存到历史记录
+            let providerName = networkMonitor.isConnected
+                ? (try? ASRFactory.create(config: config))?.name ?? "Unknown"
+                : "Apple Speech (Offline)"
+            historyManager.add(text: formattedText, provider: providerName)
             
             // 成功
             lastResult = formattedText

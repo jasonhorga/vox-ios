@@ -99,11 +99,7 @@ final class KeyboardState {
             scheduleReset()
             return
         }
-        guard networkMonitor.isConnected else {
-            phase = .error("网络不可用")
-            scheduleReset()
-            return
-        }
+        // 网络不可用时仍可使用离线识别（不再阻断）
         
         do {
             try audioRecorder.start()
@@ -125,6 +121,13 @@ final class KeyboardState {
             
             // 设置静音超时回调
             audioRecorder.onSilenceTimeout = { [weak self] in
+                Task { @MainActor [weak self] in
+                    await self?.stopRecording()
+                }
+            }
+            
+            // 设置录音超时回调（最长 60 秒）
+            audioRecorder.onMaxDurationReached = { [weak self] in
                 Task { @MainActor [weak self] in
                     await self?.stopRecording()
                 }
@@ -192,9 +195,12 @@ final class KeyboardState {
     
     // MARK: - ASR Pipeline
     
-    /// 执行 ASR 转写（键盘扩展专用：更短超时、更少重试）
+    /// 执行 ASR 转写（键盘扩展专用：15s 超时、1 次重试）
+    /// 支持离线降级到 Apple 本地识别
     private func transcribe(audioURL: URL) async throws -> String {
-        let provider = try createASRProvider()
+        let isOnline = networkMonitor.isConnected
+        let provider = try createASRProvider(networkAvailable: isOnline)
+        let timeoutSeconds: TimeInterval = 15.0
         
         return try await ASRRetryHelper.withRetry(
             maxRetries: Constants.ASR.keyboardMaxRetries,
@@ -206,7 +212,8 @@ final class KeyboardState {
                 }
                 
                 group.addTask {
-                    try await Task.sleep(nanoseconds: UInt64(Constants.ASR.keyboardTimeout * 1_000_000_000))
+                    // 15 秒超时
+                    try await Task.sleep(nanoseconds: UInt64(timeoutSeconds * 1_000_000_000))
                     throw VoxError.asrTimeout
                 }
                 
@@ -217,8 +224,13 @@ final class KeyboardState {
         }
     }
     
-    /// 创建 ASR Provider（复用 Shared 配置）
-    private func createASRProvider() throws -> ASRProvider {
+    /// 创建 ASR Provider（复用 Shared 配置，支持离线降级）
+    private func createASRProvider(networkAvailable: Bool = true) throws -> ASRProvider {
+        // 断网时降级到 Apple 本地识别
+        guard networkAvailable else {
+            return AppleSpeechASR(timeout: 15.0)
+        }
+        
         switch config.asrProvider {
         case .qwen:
             let apiKey = config.qwenAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)

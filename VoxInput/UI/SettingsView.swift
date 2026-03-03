@@ -74,6 +74,19 @@ struct SettingsView: View {
                     }
                 }
                 
+                // MARK: - 翻译模式
+                Section {
+                    Picker("翻译模式", selection: $config.translationMode) {
+                        ForEach(TranslationMode.allCases, id: \.self) { mode in
+                            Text(mode.displayName).tag(mode)
+                        }
+                    }
+                } header: {
+                    Text("后处理")
+                } footer: {
+                    Text("识别完成后自动翻译为目标语言（需要消耗额外 API 调用）")
+                }
+                
                 // MARK: - 关于
                 Section {
                     HStack {

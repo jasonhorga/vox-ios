@@ -17,6 +17,14 @@ fi
 echo "✅ 检测到 xcodegen: $(xcodegen --version)"
 echo ""
 
+# 检查 xcpretty（可选，美化编译输出）
+if ! command -v xcpretty &> /dev/null; then
+    echo "💡 建议安装 xcpretty 以美化编译输出："
+    echo ""
+    echo "   gem install xcpretty"
+    echo ""
+fi
+
 # 运行 xcodegen 生成 .xcodeproj
 echo "🔧 正在生成 Xcode 项目..."
 xcodegen generate

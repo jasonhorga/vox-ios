@@ -24,6 +24,9 @@ targets:
       - path: Shared
         excludes:
           - "**/.DS_Store"
+    resources:
+      - path: VoxInput/Assets.xcassets
+      - path: VoxInput/Resources/PrivacyInfo.xcprivacy
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.jasonhorga.voxinput
@@ -54,6 +57,7 @@ targets:
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
         NSMicrophoneUsageDescription: "Vox Input 需要使用麦克风进行语音输入"
+        NSSpeechRecognitionUsageDescription: "Vox Input 在离线时使用本地语音识别将语音转为文字"
     entitlements:
       path: VoxInput/VoxInput.entitlements
       properties:

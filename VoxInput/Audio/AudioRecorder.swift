@@ -65,11 +65,34 @@ final class AudioRecorder: NSObject {
         }
     }
     
+    // MARK: - 稳定性常量
+    
+    /// 最长录音时间（秒），超时自动停止
+    private static let maxRecordingDuration: TimeInterval = 60.0
+    
+    /// 录音失败最大重试次数
+    private static let maxRetryCount: Int = 2
+    
+    /// 超时自动停止回调
+    var onMaxDurationReached: (() -> Void)?
+    
+    /// 超时定时器
+    private var timeoutTimer: Timer?
+    
+    /// 当前重试次数
+    private var retryCount: Int = 0
+    
     // MARK: - 录音控制
     
-    /// 开始录音
+    /// 开始录音（带重试逻辑，最多 2 次）
     /// - Throws: VoxError 如果启动失败
     func start() throws {
+        retryCount = 0
+        try attemptStart()
+    }
+    
+    /// 尝试启动录音
+    private func attemptStart() throws {
         // 清理可能存在的旧录音文件
         cleanupTempFile()
         
@@ -80,6 +103,11 @@ final class AudioRecorder: NSObject {
             try session.setCategory(.record, mode: .measurement, options: [])
             try session.setActive(true, options: [])
         } catch {
+            if retryCount < Self.maxRetryCount {
+                retryCount += 1
+                try attemptStart()
+                return
+            }
             throw VoxError.recordingFailed("AudioSession 配置失败: \(error.localizedDescription)")
         }
         
@@ -102,6 +130,11 @@ final class AudioRecorder: NSObject {
             recorder.isMeteringEnabled = true  // 启用电平检测
             
             guard recorder.record() else {
+                if retryCount < Self.maxRetryCount {
+                    retryCount += 1
+                    try attemptStart()
+                    return
+                }
                 throw VoxError.recordingFailed("录音启动失败")
             }
             
@@ -116,9 +149,17 @@ final class AudioRecorder: NSObject {
             // 启动电平采样定时器
             startMeterTimer()
             
+            // 启动超时定时器（最长 60 秒）
+            startTimeoutTimer()
+            
         } catch let error as VoxError {
             throw error
         } catch {
+            if retryCount < Self.maxRetryCount {
+                retryCount += 1
+                try attemptStart()
+                return
+            }
             throw VoxError.recordingFailed(error.localizedDescription)
         }
     }
@@ -128,6 +169,7 @@ final class AudioRecorder: NSObject {
     /// - Throws: VoxError 如果录音无效
     func stop() throws -> URL {
         stopMeterTimer()
+        stopTimeoutTimer()
         
         guard let recorder = audioRecorder else {
             throw VoxError.recordingFailed("没有活跃的录音会话")
@@ -165,6 +207,7 @@ final class AudioRecorder: NSObject {
     /// 取消录音（不保存）
     func cancel() {
         stopMeterTimer()
+        stopTimeoutTimer()
         audioRecorder?.stop()
         audioRecorder = nil
         isRecording = false
@@ -187,6 +230,20 @@ final class AudioRecorder: NSObject {
     private func stopMeterTimer() {
         meterTimer?.invalidate()
         meterTimer = nil
+    }
+    
+    /// 启动超时定时器（最长 60 秒自动停止）
+    private func startTimeoutTimer() {
+        timeoutTimer = Timer.scheduledTimer(withTimeInterval: Self.maxRecordingDuration, repeats: false) { [weak self] _ in
+            guard let self, self.isRecording else { return }
+            self.onMaxDurationReached?()
+        }
+    }
+    
+    /// 停止超时定时器
+    private func stopTimeoutTimer() {
+        timeoutTimer?.invalidate()
+        timeoutTimer = nil
     }
     
     /// 更新电平读数

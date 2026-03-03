@@ -18,6 +18,9 @@ struct MainView: View {
     /// 是否需要显示权限引导
     @State private var showPermission = false
     
+    /// 是否显示历史记录
+    @State private var showHistory = false
+    
     var body: some View {
         NavigationStack {
             ZStack {
@@ -50,6 +53,14 @@ struct MainView: View {
             .navigationTitle("Vox Input")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        showHistory = true
+                    } label: {
+                        Image(systemName: "clock.arrow.circlepath")
+                    }
+                }
+                
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         showSettings = true
@@ -60,6 +71,9 @@ struct MainView: View {
             }
             .sheet(isPresented: $showSettings) {
                 SettingsView()
+            }
+            .sheet(isPresented: $showHistory) {
+                HistoryView()
             }
             .sheet(isPresented: $showPermission) {
                 PermissionView {
@@ -224,7 +238,7 @@ struct MainView: View {
                     .font(.caption)
                     .foregroundStyle(.orange)
             } else if !appState.isNetworkAvailable {
-                Label("网络不可用", systemImage: "wifi.slash")
+                Label("离线模式（Apple 本地识别）", systemImage: "wifi.slash")
                     .font(.caption)
                     .foregroundStyle(.orange)
             } else {

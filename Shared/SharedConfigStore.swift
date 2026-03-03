@@ -48,6 +48,11 @@ final class SharedConfigStore {
         didSet { saveString(language, forKey: .language) }
     }
     
+    /// 翻译模式（Sprint 2）
+    var translationMode: TranslationMode {
+        didSet { saveString(translationMode.rawValue, forKey: .translationMode) }
+    }
+    
     // MARK: - API Key（敏感，存储在 Keychain）
     
     /// Qwen ASR API Key（Keychain 存储）
@@ -68,6 +73,7 @@ final class SharedConfigStore {
         case whisperModel = "vox.asr.whisper.model"
         case hasCompletedSetup = "vox.app.hasCompletedSetup"
         case language = "vox.asr.language"
+        case translationMode = "vox.postprocess.translationMode"
     }
     
     // MARK: - 初始化
@@ -90,6 +96,10 @@ final class SharedConfigStore {
         self.hasCompletedSetup = defaults.bool(forKey: Key.hasCompletedSetup.rawValue)
         
         self.language = defaults.string(forKey: Key.language.rawValue) ?? "auto"
+        
+        self.translationMode = TranslationMode(
+            rawValue: defaults.string(forKey: Key.translationMode.rawValue) ?? ""
+        ) ?? .none
         
         // 从 Keychain 加载 API Key
         self.qwenAPIKey = KeychainStore.read(key: .qwenAPIKey) ?? ""
@@ -186,6 +196,7 @@ final class SharedConfigStore {
         whisperModel = "whisper-1"
         hasCompletedSetup = false
         language = "auto"
+        translationMode = .none
         
         // 清除 Keychain
         KeychainStore.delete(key: .qwenAPIKey)

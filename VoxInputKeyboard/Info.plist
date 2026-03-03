@@ -22,5 +22,7 @@
 	</dict>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Vox Input 需要使用麦克风进行语音输入</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Vox Input 在离线时使用本地语音识别将语音转为文字</string>
 </dict>
 </plist>

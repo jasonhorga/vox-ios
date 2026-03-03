@@ -71,6 +71,12 @@ final class ConfigStore {
         set { store.language = newValue }
     }
     
+    /// 翻译模式（Sprint 2）
+    var translationMode: TranslationMode {
+        get { store.translationMode }
+        set { store.translationMode = newValue }
+    }
+    
     // MARK: - 初始化
     
     private init() {}
