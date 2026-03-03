@@ -33,7 +33,7 @@ struct KeyboardView: View {
             // 底部工具栏（地球键 + 状态文本）
             bottomBar
         }
-        .frame(height: Constants.Keyboard.defaultHeight)
+        .frame(maxHeight: .infinity)
         .background(Color(.systemGroupedBackground))
     }
     

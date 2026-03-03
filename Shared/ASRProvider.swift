@@ -17,6 +17,22 @@ protocol ASRProvider {
     /// - Returns: 转写后的文本
     /// - Throws: VoxError
     func transcribe(audioURL: URL) async throws -> String
+    
+    /// 将音频文件转写为文本（带上下文提示）
+    /// - Parameters:
+    ///   - audioURL: 本地音频文件 URL（16kHz/16bit/Mono WAV）
+    ///   - contextHint: 光标前的文本上下文，帮助 ASR 提高准确率
+    /// - Returns: 转写后的文本
+    /// - Throws: VoxError
+    func transcribe(audioURL: URL, contextHint: String?) async throws -> String
+}
+
+/// 默认实现：不带 contextHint 时调用基础方法
+extension ASRProvider {
+    func transcribe(audioURL: URL, contextHint: String?) async throws -> String {
+        // 默认忽略 contextHint，直接调用基础方法
+        try await transcribe(audioURL: audioURL)
+    }
 }
 
 /// ASR 结果校验工具

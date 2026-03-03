@@ -89,8 +89,12 @@ enum Constants {
     // MARK: - 键盘扩展
     
     enum Keyboard {
-        /// 键盘扩展默认高度
+        /// 键盘扩展默认高度（fallback）
         static let defaultHeight: CGFloat = 260.0
+        /// 小屏设备键盘高度（iPhone SE / mini，屏幕高度 ≤ 736pt）
+        static let compactHeight: CGFloat = 230.0
+        /// 大屏设备键盘高度（Pro Max / Plus，屏幕高度 ≥ 896pt）
+        static let expandedHeight: CGFloat = 290.0
         /// 麦克风按钮大小
         static let micButtonSize: CGFloat = 64.0
         /// 波形采样点数量（比主 App 少以节省内存）
@@ -99,5 +103,23 @@ enum Constants {
         static let memoryLimit: Int = 60 * 1024 * 1024  // 60MB
         /// 状态消息自动清除延迟（秒）
         static let statusClearDelay: TimeInterval = 2.0
+        
+        /// 根据屏幕高度和安全区域动态计算键盘高度
+        /// - Parameters:
+        ///   - screenHeight: UIScreen.main.bounds.height
+        ///   - bottomSafeArea: 底部安全区域 inset（有 Home Indicator 的设备 > 0）
+        /// - Returns: 适合当前设备的键盘高度
+        static func adaptiveHeight(screenHeight: CGFloat, bottomSafeArea: CGFloat = 0) -> CGFloat {
+            // iPhone SE / 8 / mini 等小屏设备
+            if screenHeight <= 736 {
+                return compactHeight
+            }
+            // iPhone Pro Max / Plus 等大屏设备
+            if screenHeight >= 896 {
+                return expandedHeight
+            }
+            // 标准尺寸设备
+            return defaultHeight
+        }
     }
 }

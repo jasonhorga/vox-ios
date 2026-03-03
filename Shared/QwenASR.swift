@@ -45,11 +45,22 @@ final class QwenASR: ASRProvider {
     // MARK: - 转写
     
     func transcribe(audioURL: URL) async throws -> String {
+        try await transcribe(audioURL: audioURL, contextHint: nil)
+    }
+    
+    func transcribe(audioURL: URL, contextHint: String?) async throws -> String {
         // 1. 读取音频文件并编码为 base64
         let audioData = try Data(contentsOf: audioURL)
         let base64Audio = audioData.base64EncodedString()
         
-        // 2. 构建 DashScope Chat API 请求体
+        // 2. 构建转写指令（包含上下文提示）
+        var instruction = "请将这段音频转写为文字，只输出转写结果，不要添加任何额外说明。"
+        if let hint = contextHint, !hint.isEmpty {
+            let trimmedHint = String(hint.suffix(200))
+            instruction += "\n上下文参考（用户之前输入的文字）：\(trimmedHint)"
+        }
+        
+        // 3. 构建 DashScope Chat API 请求体
         // Qwen-ASR 使用 Chat Completions 格式，音频作为 input_audio 类型发送
         let requestBody: [String: Any] = [
             "model": "qwen2-audio-instruct",
@@ -66,7 +77,7 @@ final class QwenASR: ASRProvider {
                         ],
                         [
                             "type": "text",
-                            "text": "请将这段音频转写为文字，只输出转写结果，不要添加任何额外说明。"
+                            "text": instruction
                         ]
                     ]
                 ]

@@ -49,6 +49,9 @@ final class KeyboardState {
     /// 是否在密码输入框中
     private(set) var isSecureInput: Bool = false
     
+    /// 输入上下文提示（光标前的文本，用于提升 ASR 准确率）
+    var inputContextHint: String?
+    
     // MARK: - 子模块
     
     /// 键盘专用录音器
@@ -70,6 +73,8 @@ final class KeyboardState {
         
         // 检查麦克风权限
         hasMicPermission = checkMicPermission()
+        
+        SharedLogger.info("环境检查: fullAccess=\(hasFullAccess), mic=\(hasMicPermission)")
     }
     
     /// 检测是否在密码输入框中
@@ -106,6 +111,7 @@ final class KeyboardState {
             phase = .recording
             statusMessage = "录音中..."
             levelHistory = []
+            SharedLogger.info("录音开始, provider=\(config.asrProvider.rawValue), contextHint=\(inputContextHint?.prefix(50) ?? "nil")")
             
             // 设置电平更新回调
             audioRecorder.onLevelUpdate = { [weak self] level, peak in
@@ -164,6 +170,7 @@ final class KeyboardState {
             // 更新状态
             phase = .done(formatted)
             statusMessage = "已输入"
+            SharedLogger.info("ASR 完成: \(formatted.prefix(80))")
             
             // 延迟重置状态
             scheduleReset()
@@ -174,12 +181,14 @@ final class KeyboardState {
             audioRecorder.cleanupTempFile()
             phase = .error(error.shortDescription)
             statusMessage = error.shortDescription
+            SharedLogger.error("ASR 失败 (VoxError): \(error.shortDescription)")
             scheduleReset()
             return nil
         } catch {
             audioRecorder.cleanupTempFile()
             phase = .error("识别失败")
             statusMessage = "识别失败"
+            SharedLogger.error("ASR 失败: \(error.localizedDescription)")
             scheduleReset()
             return nil
         }
@@ -201,6 +210,7 @@ final class KeyboardState {
         let isOnline = networkMonitor.isConnected
         let provider = try createASRProvider(networkAvailable: isOnline)
         let timeoutSeconds: TimeInterval = 15.0
+        let contextHint = inputContextHint
         
         return try await ASRRetryHelper.withRetry(
             maxRetries: Constants.ASR.keyboardMaxRetries,
@@ -208,7 +218,7 @@ final class KeyboardState {
         ) {
             try await withThrowingTaskGroup(of: String.self) { group in
                 group.addTask {
-                    try await provider.transcribe(audioURL: audioURL)
+                    try await provider.transcribe(audioURL: audioURL, contextHint: contextHint)
                 }
                 
                 group.addTask {
@@ -262,20 +272,30 @@ final class KeyboardState {
     }
     
     /// 检查麦克风权限
+    /// iOS 17+ 使用 AVAudioApplication.shared.recordPermission（返回 AVAudioApplication.RecordPermission）
+    /// iOS 16  使用 AVAudioSession.sharedInstance().recordPermission（返回 AVAudioSession.RecordPermission）
+    /// 两者是不同类型，因此分别处理并直接返回 Bool。
     private func checkMicPermission() -> Bool {
-        let permission: AVAudioSession.RecordPermission
         if #available(iOS 17.0, *) {
-            permission = AVAudioApplication.shared.recordPermission
+            let permission = AVAudioApplication.shared.recordPermission
+            switch permission {
+            case .granted:
+                return true
+            case .denied, .undetermined:
+                return false
+            @unknown default:
+                return false
+            }
         } else {
-            permission = AVAudioSession.sharedInstance().recordPermission
-        }
-        switch permission {
-        case .granted:
-            return true
-        case .denied, .undetermined:
-            return false
-        @unknown default:
-            return false
+            let permission = AVAudioSession.sharedInstance().recordPermission
+            switch permission {
+            case .granted:
+                return true
+            case .denied, .undetermined:
+                return false
+            @unknown default:
+                return false
+            }
         }
     }
     

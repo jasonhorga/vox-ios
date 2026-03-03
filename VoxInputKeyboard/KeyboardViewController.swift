@@ -24,6 +24,16 @@ class KeyboardViewController: UIInputViewController {
     /// SwiftUI 宿主控制器
     private var hostingController: UIHostingController<AnyView>?
     
+    /// 高度约束（用于动态调整键盘高度）
+    private var heightConstraint: NSLayoutConstraint?
+    
+    /// 根据设备屏幕计算的自适应键盘高度
+    private var adaptiveKeyboardHeight: CGFloat {
+        let screenHeight = UIScreen.main.bounds.height
+        let bottomInset = view.safeAreaInsets.bottom
+        return Constants.Keyboard.adaptiveHeight(screenHeight: screenHeight, bottomSafeArea: bottomInset)
+    }
+    
     // MARK: - 生命周期
     
     override func viewDidLoad() {
@@ -40,6 +50,22 @@ class KeyboardViewController: UIInputViewController {
         super.viewDidAppear(animated)
         // 再次检查，确保状态最新
         checkEnvironment()
+        
+        // 安全区域在 viewDidAppear 后才准确，刷新键盘高度
+        updateKeyboardHeight()
+    }
+    
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        updateKeyboardHeight()
+    }
+    
+    /// 根据当前设备屏幕和安全区域刷新键盘高度
+    private func updateKeyboardHeight() {
+        let newHeight = adaptiveKeyboardHeight
+        if heightConstraint?.constant != newHeight {
+            heightConstraint?.constant = newHeight
+        }
     }
     
     // MARK: - 输入上下文变化
@@ -90,15 +116,17 @@ class KeyboardViewController: UIInputViewController {
         view.addSubview(hostVC.view)
         hostVC.didMove(toParent: self)
         
+        let height = hostVC.view.heightAnchor.constraint(equalToConstant: adaptiveKeyboardHeight)
+        
         NSLayoutConstraint.activate([
             hostVC.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             hostVC.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             hostVC.view.topAnchor.constraint(equalTo: view.topAnchor),
             hostVC.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-            // 设置键盘高度
-            hostVC.view.heightAnchor.constraint(equalToConstant: Constants.Keyboard.defaultHeight)
+            height
         ])
         
+        self.heightConstraint = height
         self.hostingController = hostVC
     }
     
@@ -120,6 +148,8 @@ class KeyboardViewController: UIInputViewController {
     /// 处理录音开始（按下麦克风按钮）
     private func handleRecordStart() {
         Task { @MainActor in
+            // 将光标前的文本上下文传给 ASR 作为识别提示
+            keyboardState.inputContextHint = textDocumentProxy.documentContextBeforeInput
             keyboardState.startRecording()
         }
     }
@@ -188,6 +218,6 @@ private struct KeyboardContentView: View {
                 )
             }
         }
-        .frame(height: Constants.Keyboard.defaultHeight)
+        .frame(maxHeight: .infinity)
     }
 }

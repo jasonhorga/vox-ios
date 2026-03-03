@@ -52,6 +52,10 @@ final class WhisperAPIASR: ASRProvider {
     // MARK: - 转写
     
     func transcribe(audioURL: URL) async throws -> String {
+        try await transcribe(audioURL: audioURL, contextHint: nil)
+    }
+    
+    func transcribe(audioURL: URL, contextHint: String?) async throws -> String {
         // 1. 读取音频文件
         let audioData = try Data(contentsOf: audioURL)
         
@@ -86,6 +90,15 @@ final class WhisperAPIASR: ASRProvider {
         body.append("--\(boundary)\r\n")
         body.append("Content-Disposition: form-data; name=\"response_format\"\r\n\r\n")
         body.append("json\r\n")
+        
+        // 添加 prompt 字段（上下文提示，提升 ASR 准确率）
+        // Whisper API 支持 prompt 参数来引导转写风格和术语
+        if let hint = contextHint, !hint.isEmpty {
+            let trimmedHint = String(hint.suffix(200))  // 限制长度，避免过大
+            body.append("--\(boundary)\r\n")
+            body.append("Content-Disposition: form-data; name=\"prompt\"\r\n\r\n")
+            body.append("\(trimmedHint)\r\n")
+        }
         
         // 结束标记
         body.append("--\(boundary)--\r\n")
