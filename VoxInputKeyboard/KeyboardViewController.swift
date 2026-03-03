@@ -51,7 +51,7 @@ class KeyboardViewController: UIInputViewController {
     override func textDidChange(_ textInput: UITextInput?) {
         super.textDidChange(textInput)
         // 检测密码输入框
-        let isSecure = textDocumentProxy.isSecureTextEntry
+        let isSecure = textDocumentProxy.isSecureTextEntry ?? false
         Task { @MainActor in
             keyboardState.updateSecureInputState(isSecure)
         }
@@ -107,14 +107,11 @@ class KeyboardViewController: UIInputViewController {
     /// 检查权限环境并更新状态
     private func checkEnvironment() {
         Task { @MainActor in
-            // 更新 Full Access 状态（使用系统 API）
-            keyboardState.hasFullAccess = hasFullAccess
-            
-            // 检查麦克风权限
+            // 检查权限环境（Full Access + 麦克风）
             keyboardState.checkEnvironment()
             
             // 检查密码输入框
-            keyboardState.updateSecureInputState(textDocumentProxy.isSecureTextEntry)
+            keyboardState.updateSecureInputState(textDocumentProxy.isSecureTextEntry ?? false)
         }
     }
     

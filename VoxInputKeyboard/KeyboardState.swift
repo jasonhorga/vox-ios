@@ -263,7 +263,13 @@ final class KeyboardState {
     
     /// 检查麦克风权限
     private func checkMicPermission() -> Bool {
-        switch AVAudioSession.sharedInstance().recordPermission {
+        let permission: AVAudioSession.RecordPermission
+        if #available(iOS 17.0, *) {
+            permission = AVAudioApplication.shared.recordPermission
+        } else {
+            permission = AVAudioSession.sharedInstance().recordPermission
+        }
+        switch permission {
         case .granted:
             return true
         case .denied, .undetermined:
