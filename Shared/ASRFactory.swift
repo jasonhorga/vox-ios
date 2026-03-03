@@ -1,5 +1,5 @@
 // ASRFactory.swift
-// VoxInput
+// Shared
 //
 // ASR 工厂：根据配置创建对应的 ASR 提供商
 // Sprint 2: 添加离线降级到 AppleSpeechASR
@@ -7,7 +7,7 @@
 import Foundation
 
 /// ASR 工厂
-/// 根据 ConfigStore 中的配置创建对应的 ASR Provider 实例
+/// 根据 SharedConfigStore 中的配置创建对应的 ASR Provider 实例
 /// 断网时自动降级到 Apple 本地识别
 enum ASRFactory {
     
@@ -17,7 +17,7 @@ enum ASRFactory {
     ///   - networkAvailable: 网络是否可用（断网时降级到本地识别）
     /// - Returns: ASR Provider 实例
     /// - Throws: VoxError.apiKeyMissing 如果 API Key 未配置（在线模式）
-    static func create(config: ConfigStore = .shared, networkAvailable: Bool = true) throws -> ASRProvider {
+    static func create(config: SharedConfigStore = .shared, networkAvailable: Bool = true) throws -> ASRProvider {
         // 断网时自动降级到 Apple 本地识别
         guard networkAvailable else {
             return AppleSpeechASR()
@@ -53,7 +53,7 @@ enum ASRFactory {
     /// - Throws: VoxError
     static func transcribe(
         audioURL: URL,
-        config: ConfigStore = .shared,
+        config: SharedConfigStore = .shared,
         networkAvailable: Bool = true
     ) async throws -> String {
         let provider = try create(config: config, networkAvailable: networkAvailable)

@@ -1,5 +1,5 @@
 // NetworkMonitor.swift
-// VoxInput
+// Shared
 //
 // 网络状态监控（基于 NWPathMonitor）
 

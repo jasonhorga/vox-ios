@@ -1,5 +1,5 @@
 // WhisperAPIASR.swift
-// VoxInput
+// Shared
 //
 // Whisper 兼容 API 实现（multipart/form-data）
 

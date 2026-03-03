@@ -1,5 +1,5 @@
 // ASRProvider.swift
-// VoxInput
+// Shared
 //
 // ASR 协议定义
 

@@ -7,12 +7,6 @@
 import Foundation
 import Observation
 
-/// ASR 提供商类型
-enum ASRProviderType: String, CaseIterable, Codable {
-    case qwen = "qwen"
-    case whisper = "whisper"
-}
-
 /// 应用配置存储
 /// Sprint 1: 作为 SharedConfigStore 的薄包装层，保持向后兼容
 /// 主 App 入口调用 migrateIfNeeded() 完成从旧版 UserDefaults 的一次性迁移

@@ -161,7 +161,6 @@ final class AppState {
             statusMessage = networkMonitor.isConnected ? "正在识别语音..." : "离线识别中..."
             let rawText = try await ASRFactory.transcribe(
                 audioURL: audioURL,
-                config: config,
                 networkAvailable: networkMonitor.isConnected
             )
             
@@ -172,8 +171,7 @@ final class AppState {
                 statusMessage = "正在翻译..."
                 processedText = try await PostProcessor.process(
                     text: rawText,
-                    mode: translationMode,
-                    config: config
+                    mode: translationMode
                 )
             }
             
@@ -187,7 +185,7 @@ final class AppState {
             
             // 步骤 5：保存到历史记录
             let providerName = networkMonitor.isConnected
-                ? (try? ASRFactory.create(config: config))?.name ?? "Unknown"
+                ? (try? ASRFactory.create())?.name ?? "Unknown"
                 : "Apple Speech (Offline)"
             historyManager.add(text: formattedText, provider: providerName)
             

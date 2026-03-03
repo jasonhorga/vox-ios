@@ -1,5 +1,5 @@
 // QwenASR.swift
-// VoxInput
+// Shared
 //
 // Qwen3-ASR（通义千问 ASR）实现
 // 使用 DashScope Chat API + base64 音频

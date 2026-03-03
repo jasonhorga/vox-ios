@@ -1,5 +1,5 @@
 // AppleSpeechASR.swift
-// VoxInput
+// Shared
 //
 // 离线降级：使用 Apple Speech.framework（SFSpeechRecognizer）进行本地语音识别
 // 断网时由 ASRFactory 自动降级到此实现

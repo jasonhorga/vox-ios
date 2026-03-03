@@ -1,5 +1,5 @@
 // VoxError.swift
-// VoxInput
+// Shared
 //
 // 统一错误类型枚举
 

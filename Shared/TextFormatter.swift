@@ -1,5 +1,5 @@
 // TextFormatter.swift
-// VoxInput
+// Shared
 //
 // 文本格式化器：CJK/ASCII 间距 + 标点规范化
 // 与 macOS 版逻辑一致

@@ -1,5 +1,5 @@
 // SilenceDetector.swift
-// VoxInput
+// Shared
 //
 // 静音检测器：连续静音超过阈值时触发回调
 

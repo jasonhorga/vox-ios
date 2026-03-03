@@ -1,5 +1,5 @@
 // PostProcessor.swift
-// VoxInput
+// Shared
 //
 // 翻译模式后处理器：根据 TranslationMode 调用 LLM 进行翻译
 // 使用用户自己的 API Key（BYOK 模式）
@@ -55,7 +55,7 @@ enum PostProcessor {
     static func process(
         text: String,
         mode: TranslationMode,
-        config: ConfigStore = .shared
+        config: SharedConfigStore = .shared
     ) async throws -> String {
         // 不翻译模式直接返回
         guard mode != .none else { return text }
