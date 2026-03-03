@@ -26,25 +26,12 @@ jobs:
       - name: Generate .xcodeproj
         run: xcodegen generate
 
-      - name: Build Main App
+      - name: Build (App + Keyboard Extension)
         run: |
           set -o pipefail
           xcodebuild build \
             -project VoxInput.xcodeproj \
             -scheme VoxInput \
-            -destination 'generic/platform=iOS Simulator' \
-            -configuration Debug \
-            CODE_SIGN_IDENTITY="" \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO \
-            2>&1 | xcpretty
-
-      - name: Build Keyboard Extension
-        run: |
-          set -o pipefail
-          xcodebuild build \
-            -project VoxInput.xcodeproj \
-            -scheme VoxInputKeyboard \
             -destination 'generic/platform=iOS Simulator' \
             -configuration Debug \
             CODE_SIGN_IDENTITY="" \
