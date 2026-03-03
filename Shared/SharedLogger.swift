@@ -43,7 +43,7 @@ enum SharedLogger {
     private static let osLog = OSLog(subsystem: Constants.bundleID, category: "VoxInput")
     
     /// 文件写入串行队列（避免并发写入冲突）
-    private static let writeQueue = DispatchQueue(label: "com.jasonhorga.voxinput.logger", qos: .utility)
+    private static let writeQueue = DispatchQueue(label: "com.jasonhorga.vox.logger", qos: .utility)
     
     // MARK: - 日志文件路径
     

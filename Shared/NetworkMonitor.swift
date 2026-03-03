@@ -34,7 +34,7 @@ final class NetworkMonitor {
     private let monitor = NWPathMonitor()
     
     /// 专用监控队列
-    private let queue = DispatchQueue(label: "com.jasonhorga.voxinput.networkmonitor", qos: .utility)
+    private let queue = DispatchQueue(label: "com.jasonhorga.vox.networkmonitor", qos: .utility)
     
     // MARK: - 初始化
     

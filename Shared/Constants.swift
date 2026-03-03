@@ -13,13 +13,13 @@ enum Constants {
     /// 应用名称
     static let appName = "Vox Input"
     /// 主 App Bundle ID
-    static let bundleID = "com.jasonhorga.voxinput"
+    static let bundleID = "com.jasonhorga.vox"
     /// 键盘扩展 Bundle ID
-    static let keyboardBundleID = "com.jasonhorga.voxinput.keyboard"
+    static let keyboardBundleID = "com.jasonhorga.vox.keyboard"
     /// App Group ID
-    static let appGroupID = "group.com.jasonhorga.voxinput"
+    static let appGroupID = "group.com.jasonhorga.vox"
     /// Keychain Access Group
-    static let keychainAccessGroup = "com.jasonhorga.voxinput.shared"
+    static let keychainAccessGroup = "com.jasonhorga.vox.shared"
     
     // MARK: - 录音参数
     

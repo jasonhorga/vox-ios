@@ -30,7 +30,7 @@ targets:
       - path: VoxInput/Resources/PrivacyInfo.xcprivacy
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.jasonhorga.voxinput
+        PRODUCT_BUNDLE_IDENTIFIER: com.jasonhorga.vox
         INFOPLIST_FILE: ""
         GENERATE_INFOPLIST_FILE: true
         MARKETING_VERSION: "1.0.0"
@@ -63,9 +63,9 @@ targets:
       path: VoxInput/VoxInput.entitlements
       properties:
         com.apple.security.application-groups:
-          - group.com.jasonhorga.voxinput
+          - group.com.jasonhorga.vox
         keychain-access-groups:
-          - "$(AppIdentifierPrefix)com.jasonhorga.voxinput.shared"
+          - "$(AppIdentifierPrefix)com.jasonhorga.vox.shared"
     dependencies:
       - target: VoxInputKeyboard
 
@@ -80,7 +80,7 @@ targets:
       - target: VoxInput
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.jasonhorga.voxinput.tests
+        PRODUCT_BUNDLE_IDENTIFIER: com.jasonhorga.vox.tests
         GENERATE_INFOPLIST_FILE: true
         TEST_HOST: "$(BUILT_PRODUCTS_DIR)/VoxInput.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/VoxInput"
         BUNDLE_LOADER: "$(TEST_HOST)"
@@ -97,7 +97,7 @@ targets:
           - "**/.DS_Store"
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.jasonhorga.voxinput.keyboard
+        PRODUCT_BUNDLE_IDENTIFIER: com.jasonhorga.vox.keyboard
         INFOPLIST_FILE: VoxInputKeyboard/Info.plist
         GENERATE_INFOPLIST_FILE: false
         MARKETING_VERSION: "1.0.0"
@@ -108,9 +108,9 @@ targets:
       path: VoxInputKeyboard/VoxInputKeyboard.entitlements
       properties:
         com.apple.security.application-groups:
-          - group.com.jasonhorga.voxinput
+          - group.com.jasonhorga.vox
         keychain-access-groups:
-          - "$(AppIdentifierPrefix)com.jasonhorga.voxinput.shared"
+          - "$(AppIdentifierPrefix)com.jasonhorga.vox.shared"
         com.apple.security.network.client: true
 
 schemes:

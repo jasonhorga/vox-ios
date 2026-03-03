@@ -14,8 +14,8 @@ enum KeychainStore {
     
     /// Keychain 存储的键名枚举
     enum Key: String {
-        case qwenAPIKey = "com.jasonhorga.voxinput.qwen.apikey"
-        case whisperAPIKey = "com.jasonhorga.voxinput.whisper.apikey"
+        case qwenAPIKey = "com.jasonhorga.vox.qwen.apikey"
+        case whisperAPIKey = "com.jasonhorga.vox.whisper.apikey"
     }
     
     // MARK: - 读取

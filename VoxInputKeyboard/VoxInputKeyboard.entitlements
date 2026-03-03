@@ -4,11 +4,11 @@
 <dict>
 	<key>com.apple.security.application-groups</key>
 	<array>
-		<string>group.com.jasonhorga.voxinput</string>
+		<string>group.com.jasonhorga.vox</string>
 	</array>
 	<key>keychain-access-groups</key>
 	<array>
-		<string>$(AppIdentifierPrefix)com.jasonhorga.voxinput.shared</string>
+		<string>$(AppIdentifierPrefix)com.jasonhorga.vox.shared</string>
 	</array>
 	<key>com.apple.security.network.client</key>
 	<true/>
