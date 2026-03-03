@@ -12,8 +12,14 @@ enum Constants {
     
     /// 应用名称
     static let appName = "Vox Input"
-    /// Bundle ID
+    /// 主 App Bundle ID
     static let bundleID = "com.jasonhorga.voxinput"
+    /// 键盘扩展 Bundle ID
+    static let keyboardBundleID = "com.jasonhorga.voxinput.keyboard"
+    /// App Group ID
+    static let appGroupID = "group.com.jasonhorga.voxinput"
+    /// Keychain Access Group
+    static let keychainAccessGroup = "com.jasonhorga.voxinput.shared"
     
     // MARK: - 录音参数
     
@@ -39,10 +45,14 @@ enum Constants {
     // MARK: - ASR 参数
     
     enum ASR {
-        /// ASR 请求超时时间（秒）
+        /// ASR 请求超时时间（秒）- 主 App
         static let timeout: TimeInterval = 25.0
+        /// ASR 请求超时时间（秒）- 键盘扩展（更短以节省内存）
+        static let keyboardTimeout: TimeInterval = 15.0
         /// 最大重试次数
         static let maxRetries: Int = 2
+        /// 键盘扩展最大重试次数（更少以避免超时）
+        static let keyboardMaxRetries: Int = 1
         /// 初始重试间隔（秒）
         static let initialRetryDelay: TimeInterval = 0.8
         /// 最小有效结果长度（字符）
@@ -72,7 +82,22 @@ enum Constants {
         static let waveformSampleCount: Int = 40
         /// 结果 Toast 显示时长（秒）
         static let toastDuration: TimeInterval = 3.0
-        /// 按钮大小
+        /// 按钮大小（主 App）
         static let recordButtonSize: CGFloat = 80.0
+    }
+    
+    // MARK: - 键盘扩展
+    
+    enum Keyboard {
+        /// 键盘扩展默认高度
+        static let defaultHeight: CGFloat = 260.0
+        /// 麦克风按钮大小
+        static let micButtonSize: CGFloat = 64.0
+        /// 波形采样点数量（比主 App 少以节省内存）
+        static let waveformSampleCount: Int = 30
+        /// 键盘扩展内存峰值目标（字节）
+        static let memoryLimit: Int = 60 * 1024 * 1024  // 60MB
+        /// 状态消息自动清除延迟（秒）
+        static let statusClearDelay: TimeInterval = 2.0
     }
 }

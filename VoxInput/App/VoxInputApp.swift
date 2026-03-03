@@ -9,6 +9,11 @@ import SwiftUI
 @main
 struct VoxInputApp: App {
     
+    init() {
+        // Sprint 1: 从旧版 UserDefaults.standard 迁移到 App Group + Keychain
+        ConfigStore.shared.migrateIfNeeded()
+    }
+    
     var body: some Scene {
         WindowGroup {
             MainView()

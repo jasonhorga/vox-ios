@@ -1,7 +1,8 @@
 // ConfigStore.swift
 // VoxInput
 //
-// 配置存储管理（UserDefaults 读写）
+// 配置存储管理（委托给 SharedConfigStore）
+// Sprint 1: 从 UserDefaults.standard 迁移到 App Group + Keychain
 
 import Foundation
 import Observation
@@ -13,7 +14,8 @@ enum ASRProviderType: String, CaseIterable, Codable {
 }
 
 /// 应用配置存储
-/// 使用 UserDefaults 持久化配置（后续 Sprint 迁移到 App Group 共享容器）
+/// Sprint 1: 作为 SharedConfigStore 的薄包装层，保持向后兼容
+/// 主 App 入口调用 migrateIfNeeded() 完成从旧版 UserDefaults 的一次性迁移
 @Observable
 final class ConfigStore {
     
@@ -21,107 +23,75 @@ final class ConfigStore {
     
     static let shared = ConfigStore()
     
-    // MARK: - 存储后端
+    // MARK: - 底层存储
     
-    private let defaults: UserDefaults
+    private let store = SharedConfigStore.shared
     
-    // MARK: - 配置项
+    // MARK: - 配置项（代理到 SharedConfigStore）
     
     /// 当前 ASR 提供商
     var asrProvider: ASRProviderType {
-        didSet { save(asrProvider.rawValue, forKey: .asrProvider) }
+        get { store.asrProvider }
+        set { store.asrProvider = newValue }
     }
     
-    /// Qwen ASR API Key
+    /// Qwen ASR API Key（Keychain 存储）
     var qwenAPIKey: String {
-        didSet { save(qwenAPIKey, forKey: .qwenAPIKey) }
+        get { store.qwenAPIKey }
+        set { store.qwenAPIKey = newValue }
     }
     
-    /// Whisper API Key
+    /// Whisper API Key（Keychain 存储）
     var whisperAPIKey: String {
-        didSet { save(whisperAPIKey, forKey: .whisperAPIKey) }
+        get { store.whisperAPIKey }
+        set { store.whisperAPIKey = newValue }
     }
     
     /// Whisper API 自定义 URL（兼容 API）
     var whisperBaseURL: String {
-        didSet { save(whisperBaseURL, forKey: .whisperBaseURL) }
+        get { store.whisperBaseURL }
+        set { store.whisperBaseURL = newValue }
     }
     
     /// Whisper 模型名称
     var whisperModel: String {
-        didSet { save(whisperModel, forKey: .whisperModel) }
+        get { store.whisperModel }
+        set { store.whisperModel = newValue }
     }
     
     /// 是否已完成首次设置
     var hasCompletedSetup: Bool {
-        didSet { save(hasCompletedSetup, forKey: .hasCompletedSetup) }
+        get { store.hasCompletedSetup }
+        set { store.hasCompletedSetup = newValue }
     }
     
     /// ASR 识别语言（默认自动检测）
     var language: String {
-        didSet { save(language, forKey: .language) }
-    }
-    
-    // MARK: - 存储键
-    
-    private enum Key: String {
-        case asrProvider = "vox.asr.provider"
-        case qwenAPIKey = "vox.asr.qwen.apikey"
-        case whisperAPIKey = "vox.asr.whisper.apikey"
-        case whisperBaseURL = "vox.asr.whisper.baseurl"
-        case whisperModel = "vox.asr.whisper.model"
-        case hasCompletedSetup = "vox.app.hasCompletedSetup"
-        case language = "vox.asr.language"
+        get { store.language }
+        set { store.language = newValue }
     }
     
     // MARK: - 初始化
     
-    private init() {
-        // Sprint 0 使用标准 UserDefaults，Sprint 1 迁移到 App Group
-        self.defaults = UserDefaults.standard
-        
-        // 从 UserDefaults 加载配置，提供默认值
-        self.asrProvider = ASRProviderType(rawValue: defaults.string(forKey: Key.asrProvider.rawValue) ?? "") ?? .qwen
-        self.qwenAPIKey = defaults.string(forKey: Key.qwenAPIKey.rawValue) ?? ""
-        self.whisperAPIKey = defaults.string(forKey: Key.whisperAPIKey.rawValue) ?? ""
-        self.whisperBaseURL = defaults.string(forKey: Key.whisperBaseURL.rawValue) ?? Constants.Network.whisperDefaultURL
-        self.whisperModel = defaults.string(forKey: Key.whisperModel.rawValue) ?? "whisper-1"
-        self.hasCompletedSetup = defaults.bool(forKey: Key.hasCompletedSetup.rawValue)
-        self.language = defaults.string(forKey: Key.language.rawValue) ?? "auto"
-    }
+    private init() {}
     
     // MARK: - 计算属性
     
     /// 当前选择的 ASR 提供商是否有有效的 API Key
     var hasValidAPIKey: Bool {
-        switch asrProvider {
-        case .qwen:
-            return !qwenAPIKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        case .whisper:
-            return !whisperAPIKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        }
+        store.hasValidAPIKey
     }
     
-    // MARK: - 私有方法
+    // MARK: - 数据迁移
     
-    /// 保存字符串值
-    private func save(_ value: String, forKey key: Key) {
-        defaults.set(value, forKey: key.rawValue)
-    }
-    
-    /// 保存布尔值
-    private func save(_ value: Bool, forKey key: Key) {
-        defaults.set(value, forKey: key.rawValue)
+    /// 从旧版 UserDefaults.standard 迁移到 App Group + Keychain
+    /// 在 App 启动时调用一次
+    func migrateIfNeeded() {
+        store.migrateFromStandardDefaults()
     }
     
     /// 重置所有配置为默认值
     func resetAll() {
-        asrProvider = .qwen
-        qwenAPIKey = ""
-        whisperAPIKey = ""
-        whisperBaseURL = Constants.Network.whisperDefaultURL
-        whisperModel = "whisper-1"
-        hasCompletedSetup = false
-        language = "auto"
+        store.resetAll()
     }
 }
