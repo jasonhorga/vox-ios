@@ -21,6 +21,7 @@ targets:
       - path: VoxInput
         excludes:
           - "**/.DS_Store"
+          - "Info.plist"
       - path: Shared
         excludes:
           - "**/.DS_Store"
