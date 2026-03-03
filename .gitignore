@@ -6,3 +6,6 @@ DerivedData/
 *.xcodeproj/project.xcworkspace/xcuserdata/
 .env
 .env.*
+
+# xcodegen 生成的项目文件（运行 setup.sh 重新生成）
+*.xcodeproj
