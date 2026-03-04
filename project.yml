@@ -143,3 +143,13 @@ schemes:
     test:
       targets:
         - VoxInputTests
+
+  VoxInputTests:
+    build:
+      targets:
+        VoxInput: all
+        VoxInputTests: [test]
+    test:
+      targets:
+        - VoxInputTests
+      gatherCoverageData: true
