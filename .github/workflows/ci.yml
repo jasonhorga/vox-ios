@@ -26,7 +26,7 @@ jobs:
       - name: Generate .xcodeproj
         run: xcodegen generate
 
-      - name: Build (App + Keyboard Extension)
+      - name: Build Main App
         run: |
           set -o pipefail
           xcodebuild build \
@@ -39,7 +39,20 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             2>&1 | xcpretty
 
-      - name: Find Simulator
+      - name: Build Keyboard Extension
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project VoxInput.xcodeproj \
+            -scheme VoxInputKeyboard \
+            -destination 'generic/platform=iOS Simulator' \
+            -configuration Debug \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            2>&1 | xcpretty
+
+      - name: Find and Boot Simulator
         run: |
           cat << 'EOF' > find_sim.py
           import sys,json
@@ -57,10 +70,12 @@ jobs:
           SIM=$(xcrun simctl list devices available -j | python3 find_sim.py)
           echo "SIMULATOR_UDID=$SIM" >> $GITHUB_ENV
           echo "Using: $SIM"
+          xcrun simctl boot "$SIM" || true
 
       - name: Run Unit Tests
         run: |
           set -o pipefail
+          # Use raw xcodebuild for testing first to ensure we see errors, then pipe to xcpretty
           xcodebuild test \
             -project VoxInput.xcodeproj \
             -scheme VoxInputTests \
@@ -69,7 +84,15 @@ jobs:
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
-            2>&1 | xcpretty --color --report junit
+            | tee xcodebuild_test.log | xcpretty --color --report junit
+
+      - name: Show raw logs on failure
+        if: failure()
+        run: |
+          if [ -f xcodebuild_test.log ]; then
+            echo "--- RAW TEST LOGS ---"
+            tail -n 200 xcodebuild_test.log
+          fi
 
       - name: Upload Test Results
         if: always()
