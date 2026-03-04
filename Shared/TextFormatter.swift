@@ -96,7 +96,7 @@ enum TextFormatter {
             // CJK 后的英文分号 → 中文分号
             ("(\(cjk));", "$1；"),
             // 连续相同中文标点去重
-            ("([，。？！：；]){2,}", "$1"),
+            ("([，。？！：；])\\1+", "$1"),
         ]
         
         for (pattern, replacement) in replacements {
