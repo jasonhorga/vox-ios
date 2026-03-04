@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Privacy Policy - Vox Input</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #333; max-width: 800px; margin: 0 auto; padding: 40px 20px; }
+        h1 { border-bottom: 2px solid #eee; padding-bottom: 10px; color: #000; }
+        h2 { margin-top: 30px; color: #000; }
+        code { background: #f4f4f4; padding: 2px 5px; border-radius: 3px; font-family: monospace; }
+        pre { background: #f4f4f4; padding: 15px; border-radius: 5px; overflow-x: auto; font-family: monospace; white-space: pre-wrap; }
+        .footer { margin-top: 50px; border-top: 1px solid #eee; padding-top: 20px; font-size: 0.9em; color: #666; }
+        .summary { background: #f9f9ff; border-left: 4px solid #007aff; padding: 15px; margin: 20px 0; font-style: italic; }
+    </style>
+</head>
+<body>
+    <h1>Privacy Policy for Vox Input</h1>
+    <p><strong>Last Updated:</strong> 2026-03-03</p>
+
+    <div class="summary">
+        <strong>Summary:</strong> Vox Input is a privacy-first, BYOK voice input tool. We have no servers, no databases, no analytics, and no way to access your data. Your voice, your keys, your data.
+    </div>
+
+    <h2>Overview</h2>
+    <p>Vox Input is a voice-to-text input application for iOS that operates on a <strong>Bring Your Own Key (BYOK)</strong> model. Vox Input does <strong>not</strong> collect, store, or transmit any user data to our servers. We do not operate any backend services.</p>
+
+    <h2>Data Collection</h2>
+    <p><strong>Vox Input collects no user data.</strong> Specifically:</p>
+    <ul>
+        <li>We do <strong>not</strong> collect personal information</li>
+        <li>We do <strong>not</strong> collect usage analytics or telemetry</li>
+        <li>We do <strong>not</strong> collect crash reports</li>
+        <li>We do <strong>not</strong> use any third-party tracking or advertising SDKs</li>
+        <li>We do <strong>not</strong> maintain any user accounts or databases</li>
+    </ul>
+
+    <h2>Microphone Usage</h2>
+    <p>Vox Input requires microphone access to record your voice for speech-to-text conversion. Audio data is:</p>
+    <ol>
+        <li>Recorded locally on your device</li>
+        <li>Sent <strong>directly</strong> from your device to the ASR (Automatic Speech Recognition) API endpoint <strong>you have configured</strong> using <strong>your own API key</strong></li>
+        <li>Deleted from your device immediately after the transcription is complete</li>
+    </ol>
+    <p>Vox Input never intercepts, stores, copies, or relays your audio data. The audio travels directly from your device to your chosen API provider.</p>
+
+    <h2>API Keys</h2>
+    <p>Vox Input uses a BYOK (Bring Your Own Key) model:</p>
+    <ul>
+        <li>You provide your own API keys for third-party services (e.g., OpenAI Whisper, Alibaba Qwen ASR)</li>
+        <li>API keys are stored securely in the iOS Keychain on your device</li>
+        <li>API keys are <strong>never</strong> transmitted to us or any third party</li>
+        <li>You maintain full control over your API keys and can revoke them at any time through your API provider's dashboard</li>
+    </ul>
+
+    <h2>Data Flow</h2>
+    <p>The complete data flow in Vox Input is:</p>
+    <pre>Your Voice → Your Device (Microphone) → Your Device (Temporary Audio File)
+    → Your ASR API Account (Direct HTTPS Request) → Your Device (Text Result)
+    → Your Clipboard / Text Field</pre>
+    <p>At no point does data pass through any server operated by Vox Input.</p>
+
+    <h2>Keyboard Extension</h2>
+    <p>Vox Input includes a keyboard extension that provides voice input across all apps. The keyboard extension:</p>
+    <ul>
+        <li>Requires "Allow Full Access" to access the microphone and network</li>
+        <li>Uses the same BYOK model as the main app</li>
+        <li>Does <strong>not</strong> log or transmit keystrokes</li>
+        <li>Does <strong>not</strong> collect any text you type or dictate</li>
+        <li>Shares configuration with the main app via a secure App Group container</li>
+    </ul>
+
+    <h2>Offline Mode</h2>
+    <p>When network connectivity is unavailable, Vox Input can fall back to Apple's on-device speech recognition (Speech.framework). In this mode:</p>
+    <ul>
+        <li>All processing happens entirely on your device</li>
+        <li>No data is transmitted over the network</li>
+        <li>Apple's standard on-device privacy practices apply</li>
+    </ul>
+
+    <h2>Local History</h2>
+    <p>Vox Input stores a local history of your transcription results on your device for your convenience:</p>
+    <ul>
+        <li>History is stored in the app's local storage (App Group UserDefaults)</li>
+        <li>History never leaves your device</li>
+        <li>You can delete individual records or clear all history at any time from within the app</li>
+    </ul>
+
+    <h2>Third-Party Services</h2>
+    <p>Vox Input connects to third-party ASR services <strong>only when you configure it to do so</strong> by providing your own API key. The privacy practices of these third-party services are governed by their respective privacy policies:</p>
+    <ul>
+        <li><strong>OpenAI (Whisper API):</strong> <a href="https://openai.com/privacy" target="_blank">https://openai.com/privacy</a></li>
+        <li><strong>Alibaba Cloud (DashScope / Qwen ASR):</strong> <a href="https://www.alibabacloud.com/help/en/legal/latest/Chinese-Mainland-Chinese-Mainland-Chinese-Mainland-Chinese-Mainland-Chinese-Mainland-Chinese-Mainland-Chinese-Mainland-Chinese-Mainland" target="_blank">https://www.alibabacloud.com/help</a></li>
+        <li><strong>Apple Speech Recognition:</strong> <a href="https://www.apple.com/privacy" target="_blank">https://www.apple.com/privacy</a></li>
+    </ul>
+
+    <h2>Contact</h2>
+    <p>If you have questions or concerns about this privacy policy, please open an issue on our GitHub repository or contact us at:</p>
+    <ul>
+        <li>GitHub: <a href="https://github.com/jasonhorga/vox-ios" target="_blank">https://github.com/jasonhorga/vox-ios</a></li>
+    </ul>
+
+    <div class="footer">
+        &copy; 2026 Vox Input. Built with privacy in mind.
+    </div>
+</body>
+</html>
