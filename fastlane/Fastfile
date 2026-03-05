@@ -94,7 +94,7 @@ platform :ios do
     match(
       api_key: api_key,
       type: "appstore",
-      readonly: false,
+      readonly: true,
       storage_mode: "git",
       git_url: ENV["MATCH_GIT_URL"],
       app_identifier: [
@@ -102,9 +102,7 @@ platform :ios do
         "com.jasonhorga.vox.keyboard"
       ],
       keychain_name: "vox-ci-signing",
-      keychain_password: ENV["MATCH_KEYCHAIN_PASSWORD"],
-      force: true,
-      force_for_new_devices: false
+      keychain_password: ENV["MATCH_KEYCHAIN_PASSWORD"]
     )
 
     begin
