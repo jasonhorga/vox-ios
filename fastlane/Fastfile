@@ -56,25 +56,23 @@ platform :ios do
       end
     end
 
-    # 2b. Create app on App Store Connect (if not yet present)
-    begin
-      app = Spaceship::ConnectAPI::App.find("com.jasonhorga.vox")
-      if app
-        UI.success("App 'com.jasonhorga.vox' already exists on ASC (#{app.id}) ✔")
-      else
-        UI.message("Creating app 'Vox Input' on App Store Connect…")
-        Spaceship::ConnectAPI::App.create(
-          name: "Vox Input",
-          version_string: "1.0.0",
-          sku: "com.jasonhorga.vox",
-          primary_locale: "zh-Hans",
-          bundle_id: "com.jasonhorga.vox",
-          platforms: [Spaceship::ConnectAPI::Platform::IOS]
-        )
-        UI.success("App 'Vox Input' created on ASC ✔")
-      end
-    rescue => e
-      UI.important("App creation on ASC skipped: #{e.message}")
+    # 2b. Verify app exists on App Store Connect
+    # NOTE: Creating apps via the API requires an Admin-role API key.
+    # If the app doesn't exist yet, it must be created manually at
+    # https://appstoreconnect.apple.com before this pipeline can succeed.
+    asc_app = Spaceship::ConnectAPI::App.find("com.jasonhorga.vox")
+    if asc_app
+      UI.success("App 'com.jasonhorga.vox' exists on ASC (#{asc_app.id}) ✔")
+    else
+      UI.user_error!(
+        "App 'com.jasonhorga.vox' does not exist on App Store Connect.\n" \
+        "Please create it manually at https://appstoreconnect.apple.com\n" \
+        "  • Bundle ID: com.jasonhorga.vox\n" \
+        "  • App Name: Vox Input\n" \
+        "  • Primary Language: 简体中文\n" \
+        "  • SKU: com.jasonhorga.vox\n" \
+        "Then re-run this pipeline."
+      )
     end
 
     # ── 3. Code Signing (API Key auto-manages) ──
@@ -98,16 +96,26 @@ platform :ios do
     )
 
     # ── 4. Increment build number from TestFlight ──
-    increment_build_number(
-      build_number: latest_testflight_build_number(
+    begin
+      latest_build = latest_testflight_build_number(
         api_key: api_key,
         app_identifier: "com.jasonhorga.vox"
-      ) + 1
+      )
+    rescue => e
+      UI.important("Could not fetch latest build number (#{e.message}), starting from 0")
+      latest_build = 0
+    end
+
+    new_build_number = latest_build + 1
+    UI.message("Setting build number to #{new_build_number}")
+
+    increment_build_number(
+      build_number: new_build_number
     )
 
     # Also sync keyboard extension build number
     increment_build_number(
-      build_number: lane_context[SharedValues::BUILD_NUMBER],
+      build_number: new_build_number,
       xcodeproj: "VoxInput.xcodeproj"
     )
 
