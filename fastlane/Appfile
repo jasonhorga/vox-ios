@@ -1,9 +1,4 @@
 # Appfile — Vox Input iOS
-# These values are used by Fastlane actions automatically.
+# Minimal config: authentication is handled via API Key in Fastfile.
 
-app_identifier("com.jasonhorga.vox")       # Main app bundle ID
-apple_id(ENV["APPLE_ID"])                  # Apple ID email (optional, API Key is primary auth)
-
-# Team IDs — set via environment or hardcode after first run
-# itc_team_id(ENV["ITC_TEAM_ID"])
-# team_id(ENV["TEAM_ID"])
+app_identifier("com.jasonhorga.vox")
