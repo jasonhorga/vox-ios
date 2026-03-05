@@ -38,8 +38,6 @@ targets:
         MARKETING_VERSION: "1.0.0"
         CURRENT_PROJECT_VERSION: "1"
         CODE_SIGN_ENTITLEMENTS: VoxInput/VoxInput.entitlements
-        CODE_SIGN_STYLE: Manual
-        PROVISIONING_PROFILE_SPECIFIER: "match AppStore com.jasonhorga.vox"
         ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES: true
     info:
       path: VoxInput/Info.plist
@@ -107,8 +105,6 @@ targets:
         MARKETING_VERSION: "1.0.0"
         CURRENT_PROJECT_VERSION: "1"
         CODE_SIGN_ENTITLEMENTS: VoxInputKeyboard/VoxInputKeyboard.entitlements
-        CODE_SIGN_STYLE: Manual
-        PROVISIONING_PROFILE_SPECIFIER: "match AppStore com.jasonhorga.vox.keyboard"
         SKIP_INSTALL: true
     info:
       path: VoxInputKeyboard/Info.plist

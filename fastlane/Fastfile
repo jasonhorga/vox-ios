@@ -70,6 +70,7 @@ platform :ios do
       ],
       keychain_name: "vox-ci-signing",
       keychain_password: ENV["MATCH_KEYCHAIN_PASSWORD"],
+      force: true,
       force_for_new_devices: false
     )
 
