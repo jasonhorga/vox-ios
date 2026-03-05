@@ -94,7 +94,8 @@ platform :ios do
     match(
       api_key: api_key,
       type: "appstore",
-      readonly: true,
+      readonly: false,
+      force: true,
       storage_mode: "git",
       git_url: ENV["MATCH_GIT_URL"],
       app_identifier: [
