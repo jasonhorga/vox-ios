@@ -139,7 +139,7 @@ platform :ios do
           "com.jasonhorga.vox.keyboard" => "match AppStore com.jasonhorga.vox.keyboard"
         }
       },
-      xcargs: "CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM=JGBNJD565F"
+      xcargs: "CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM=6HB84897DJ"
     )
 
     upload_to_testflight(

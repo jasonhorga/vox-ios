@@ -13,7 +13,7 @@ settings:
   base:
     SWIFT_VERSION: "5.9"
     TARGETED_DEVICE_FAMILY: "1,2"
-    DEVELOPMENT_TEAM: "JGBNJD565F"
+    DEVELOPMENT_TEAM: "6HB84897DJ"
 
 targets:
   VoxInput:
