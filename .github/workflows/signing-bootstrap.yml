@@ -1,0 +1,50 @@
+name: Signing Bootstrap (one-time)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  bootstrap:
+    name: Bootstrap match signing assets
+    runs-on: macos-15
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_16.2.app
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+          bundler-cache: true
+
+      - name: Validate bootstrap secrets
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+          MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          MATCH_KEYCHAIN_PASSWORD: ${{ secrets.MATCH_KEYCHAIN_PASSWORD }}
+        run: |
+          test -n "$ASC_KEY_ID" || (echo "❌ Missing ASC_KEY_ID" && exit 1)
+          test -n "$ASC_ISSUER_ID" || (echo "❌ Missing ASC_ISSUER_ID" && exit 1)
+          test -n "$ASC_PRIVATE_KEY" || (echo "❌ Missing ASC_PRIVATE_KEY" && exit 1)
+          test -n "$MATCH_GIT_URL" || (echo "❌ Missing MATCH_GIT_URL" && exit 1)
+          test -n "$MATCH_PASSWORD" || (echo "❌ Missing MATCH_PASSWORD" && exit 1)
+          test -n "$MATCH_KEYCHAIN_PASSWORD" || (echo "❌ Missing MATCH_KEYCHAIN_PASSWORD" && exit 1)
+          echo "✅ bootstrap secrets ready"
+
+      - name: Run fastlane bootstrap_signing
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+          MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          MATCH_KEYCHAIN_PASSWORD: ${{ secrets.MATCH_KEYCHAIN_PASSWORD }}
+        run: bundle exec fastlane bootstrap_signing
