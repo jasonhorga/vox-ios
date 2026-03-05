@@ -79,19 +79,17 @@ platform :ios do
     get_certificates(
       api_key: api_key,
       platform: "ios",
-      readonly: true
+      generate_apple_certs: true
     )
 
     get_provisioning_profile(
       api_key: api_key,
-      app_identifier: "com.jasonhorga.vox",
-      readonly: true
+      app_identifier: "com.jasonhorga.vox"
     )
 
     get_provisioning_profile(
       api_key: api_key,
-      app_identifier: "com.jasonhorga.vox.keyboard",
-      readonly: true
+      app_identifier: "com.jasonhorga.vox.keyboard"
     )
 
     # ── 4. Increment build number from TestFlight ──
