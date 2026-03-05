@@ -5,9 +5,6 @@ default_platform(:ios)
 platform :ios do
   desc "Build and upload to TestFlight"
   lane :beta do
-    require "tempfile"
-    require "shellwords"
-
     # ── 1. Load App Store Connect API Key ──
     # Sanitise the private key coming from GitHub Secrets / env vars.
     # GitHub Actions may inject literal "\n" sequences, trailing
@@ -78,71 +75,67 @@ platform :ios do
       )
     end
 
-    # ── 3. Build auth for Xcode automatic signing in CI ──
-    # Avoid cert/profile creation in fastlane to prevent hitting distribution
-    # certificate quota. Let xcodebuild perform automatic provisioning via ASC API key.
-    auth_key_file = Tempfile.new(["asc_auth_", ".p8"])
-    auth_key_file.write(clean_key)
-    auth_key_file.flush
-    auth_key_path = auth_key_file.path
-    auth_key_file.close
+    # ── 3. Fetch signing certificate and provisioning profiles ──
+    get_certificates(
+      api_key: api_key,
+      platform: "ios",
+      readonly: true
+    )
 
+    get_provisioning_profile(
+      api_key: api_key,
+      app_identifier: "com.jasonhorga.vox",
+      readonly: true
+    )
+
+    get_provisioning_profile(
+      api_key: api_key,
+      app_identifier: "com.jasonhorga.vox.keyboard",
+      readonly: true
+    )
+
+    # ── 4. Increment build number from TestFlight ──
     begin
-      # ── 4. Increment build number from TestFlight ──
-      begin
-        latest_build = latest_testflight_build_number(
-          api_key: api_key,
-          app_identifier: "com.jasonhorga.vox"
-        )
-      rescue => e
-        UI.important("Could not fetch latest build number (#{e.message}), starting from 0")
-        latest_build = 0
-      end
-
-      new_build_number = latest_build + 1
-      UI.message("Setting build number to #{new_build_number}")
-
-      increment_build_number(
-        build_number: new_build_number
-      )
-
-      # Also sync keyboard extension build number
-      increment_build_number(
-        build_number: new_build_number,
-        xcodeproj: "VoxInput.xcodeproj"
-      )
-
-      # ── 5. Build ──
-      build_app(
-        project: "VoxInput.xcodeproj",
-        scheme: "VoxInput",
-        configuration: "Release",
-        output_directory: "build",
-        output_name: "VoxInput.ipa",
-        export_method: "app-store",
-        clean: true,
-        xcargs: [
-          "-allowProvisioningUpdates",
-          "-authenticationKeyPath #{Shellwords.escape(auth_key_path)}",
-          "-authenticationKeyID #{ENV.fetch('ASC_KEY_ID')}",
-          "-authenticationKeyIssuerID #{ENV.fetch('ASC_ISSUER_ID')}",
-          "CODE_SIGN_STYLE=Automatic",
-          "DEVELOPMENT_TEAM=JGBNJD565F"
-        ].join(" ")
-      )
-
-      # ── 6. Upload to TestFlight ──
-      upload_to_testflight(
+      latest_build = latest_testflight_build_number(
         api_key: api_key,
-        skip_waiting_for_build_processing: true,
-        distribute_external: false,
-        changelog: "Automated build from CI"
+        app_identifier: "com.jasonhorga.vox"
       )
-    ensure
-      if auth_key_path && File.exist?(auth_key_path)
-        File.delete(auth_key_path)
-        UI.message("Deleted temporary ASC API key file")
-      end
+    rescue => e
+      UI.important("Could not fetch latest build number (#{e.message}), starting from 0")
+      latest_build = 0
     end
+
+    new_build_number = latest_build + 1
+    UI.message("Setting build number to #{new_build_number}")
+
+    increment_build_number(
+      build_number: new_build_number
+    )
+
+    # Also sync keyboard extension build number
+    increment_build_number(
+      build_number: new_build_number,
+      xcodeproj: "VoxInput.xcodeproj"
+    )
+
+    # ── 5. Build ──
+    build_app(
+      project: "VoxInput.xcodeproj",
+      scheme: "VoxInput",
+      configuration: "Release",
+      output_directory: "build",
+      output_name: "VoxInput.ipa",
+      export_method: "app-store",
+      clean: true,
+      xcargs: "CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM=JGBNJD565F"
+    )
+
+    # ── 6. Upload to TestFlight ──
+    upload_to_testflight(
+      api_key: api_key,
+      skip_waiting_for_build_processing: true,
+      distribute_external: false,
+      changelog: "Automated build from CI"
+    )
   end
 end
