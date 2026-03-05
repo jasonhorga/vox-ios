@@ -25,24 +25,56 @@ platform :ios do
       in_house: false
     )
 
-    # ── 2. Ensure App exists on App Store Connect ──
-    # NOTE: produce does not support the api_key parameter directly.
-    # It will pick up the API key from the shared lane context set by
-    # app_store_connect_api_key above.  We wrap this in a rescue block
-    # because the app most likely already exists on ASC – if produce
-    # fails (e.g. duplicate app), we log the error and continue.
+    # ── 2. Ensure App & Bundle IDs exist ──
+    # produce does not support API Key auth for the Developer Portal
+    # (it uses the legacy Spaceship portal login that requires Apple ID).
+    # Instead we call Spaceship::ConnectAPI directly, which honours the
+    # API key loaded in step 1.
+
+    app_identifiers = [
+      "com.jasonhorga.vox",
+      "com.jasonhorga.vox.keyboard"
+    ]
+
+    # 2a. Register Bundle IDs on the Developer Portal (if not yet present)
+    app_identifiers.each do |bundle_id_str|
+      begin
+        existing = Spaceship::ConnectAPI::BundleId.find(bundle_id_str)
+        if existing
+          UI.success("Bundle ID '#{bundle_id_str}' already registered ✔")
+        else
+          UI.message("Registering Bundle ID '#{bundle_id_str}' on the Developer Portal…")
+          Spaceship::ConnectAPI::BundleId.create(
+            name: bundle_id_str.gsub(".", " ").split.map(&:capitalize).join(""),
+            platform: Spaceship::ConnectAPI::BundleIdPlatform::IOS,
+            identifier: bundle_id_str
+          )
+          UI.success("Bundle ID '#{bundle_id_str}' registered ✔")
+        end
+      rescue => e
+        UI.important("Bundle ID registration for '#{bundle_id_str}' skipped: #{e.message}")
+      end
+    end
+
+    # 2b. Create app on App Store Connect (if not yet present)
     begin
-      produce(
-        app_identifier: "com.jasonhorga.vox",
-        app_name: "Vox Input",
-        language: "zh-Hans",
-        app_version: "1.0.0",
-        sku: "com.jasonhorga.vox",
-        skip_itc: false,
-        skip_devcenter: false
-      )
+      app = Spaceship::ConnectAPI::App.find("com.jasonhorga.vox")
+      if app
+        UI.success("App 'com.jasonhorga.vox' already exists on ASC (#{app.id}) ✔")
+      else
+        UI.message("Creating app 'Vox Input' on App Store Connect…")
+        Spaceship::ConnectAPI::App.create(
+          name: "Vox Input",
+          version_string: "1.0.0",
+          sku: "com.jasonhorga.vox",
+          primary_locale: "zh-Hans",
+          bundle_id: "com.jasonhorga.vox",
+          platforms: [Spaceship::ConnectAPI::Platform::IOS]
+        )
+        UI.success("App 'Vox Input' created on ASC ✔")
+      end
     rescue => e
-      UI.important("produce failed (app may already exist): #{e.message}")
+      UI.important("App creation on ASC skipped: #{e.message}")
     end
 
     # ── 3. Code Signing (API Key auto-manages) ──
