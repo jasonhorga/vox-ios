@@ -126,7 +126,8 @@ platform :ios do
           "-authenticationKeyPath #{Shellwords.escape(auth_key_path)}",
           "-authenticationKeyID #{ENV.fetch('ASC_KEY_ID')}",
           "-authenticationKeyIssuerID #{ENV.fetch('ASC_ISSUER_ID')}",
-          "CODE_SIGN_STYLE=Automatic"
+          "CODE_SIGN_STYLE=Automatic",
+          "DEVELOPMENT_TEAM=JGBNJD565F"
         ].join(" ")
       )
 
