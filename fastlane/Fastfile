@@ -3,143 +3,149 @@
 default_platform(:ios)
 
 platform :ios do
-  desc "Build and upload to TestFlight"
-  lane :beta do
-    require "tmpdir"
-    require "shellwords"
-    # ── 1. Load App Store Connect API Key ──
-    # Sanitise the private key coming from GitHub Secrets / env vars.
-    # GitHub Actions may inject literal "\n" sequences, trailing
-    # whitespace, or null bytes (\x00) into the value – any of these
-    # will cause OpenSSL to reject the key with a "null byte" error.
+  def load_asc_api_key!
     raw_key = ENV["ASC_PRIVATE_KEY"] || ""
     clean_key = raw_key
-                  .gsub("\\n", "\n")   # convert literal \n to real newlines
-                  .gsub("\r", "")       # strip carriage returns
-                  .delete("\u0000")     # remove null bytes
-                  .strip                # trim leading/trailing whitespace
+                  .gsub("\\n", "\n")
+                  .gsub("\r", "")
+                  .delete("\u0000")
+                  .strip
 
-    api_key = app_store_connect_api_key(
+    app_store_connect_api_key(
       key_id: ENV["ASC_KEY_ID"],
       issuer_id: ENV["ASC_ISSUER_ID"],
       key_content: clean_key,
       is_key_content_base64: false,
       in_house: false
     )
+  end
 
-    # ── 2. Ensure App & Bundle IDs exist ──
-    # produce does not support API Key auth for the Developer Portal
-    # (it uses the legacy Spaceship portal login that requires Apple ID).
-    # Instead we call Spaceship::ConnectAPI directly, which honours the
-    # API key loaded in step 1.
+  def ensure_match_env!
+    required = %w[MATCH_GIT_URL MATCH_PASSWORD MATCH_KEYCHAIN_PASSWORD]
+    missing = required.select { |k| ENV[k].to_s.strip.empty? }
+    return if missing.empty?
 
-    app_identifiers = [
-      "com.jasonhorga.vox",
-      "com.jasonhorga.vox.keyboard"
-    ]
+    UI.user_error!(
+      "Missing required signing env vars for persistent certificate reuse: #{missing.join(', ')}.\n" \
+      "CI is intentionally blocked to prevent creating new Distribution certificates."
+    )
+  end
 
-    # 2a. Register Bundle IDs on the Developer Portal (if not yet present)
-    app_identifiers.each do |bundle_id_str|
-      begin
-        existing = Spaceship::ConnectAPI::BundleId.find(bundle_id_str)
-        if existing
-          UI.success("Bundle ID '#{bundle_id_str}' already registered ✔")
-        else
-          UI.message("Registering Bundle ID '#{bundle_id_str}' on the Developer Portal…")
-          Spaceship::ConnectAPI::BundleId.create(
-            name: bundle_id_str.gsub(".", " ").split.map(&:capitalize).join(""),
-            platform: Spaceship::ConnectAPI::BundleIdPlatform::IOS,
-            identifier: bundle_id_str
-          )
-          UI.success("Bundle ID '#{bundle_id_str}' registered ✔")
-        end
-      rescue => e
-        UI.important("Bundle ID registration for '#{bundle_id_str}' skipped: #{e.message}")
-      end
-    end
-
-    # 2b. Verify app exists on App Store Connect
-    # NOTE: Creating apps via the API requires an Admin-role API key.
-    # If the app doesn't exist yet, it must be created manually at
-    # https://appstoreconnect.apple.com before this pipeline can succeed.
+  def ensure_app_exists!
     asc_app = Spaceship::ConnectAPI::App.find("com.jasonhorga.vox")
-    if asc_app
-      UI.success("App 'com.jasonhorga.vox' exists on ASC (#{asc_app.id}) ✔")
-    else
-      UI.user_error!(
-        "App 'com.jasonhorga.vox' does not exist on App Store Connect.\n" \
-        "Please create it manually at https://appstoreconnect.apple.com\n" \
-        "  • Bundle ID: com.jasonhorga.vox\n" \
-        "  • App Name: Vox Input\n" \
-        "  • Primary Language: 简体中文\n" \
-        "  • SKU: com.jasonhorga.vox\n" \
-        "Then re-run this pipeline."
-      )
-    end
+    return if asc_app
 
-    # ── 3. Write temporary .p8 key file for xcodebuild API-key signing ──
-    # xcodebuild's -authenticationKeyPath flag requires a file on disk.
-    # We write the sanitised key to a temp path and remove it in `ensure`.
-    tmp_key_path = File.join(Dir.tmpdir, "AuthKey_#{ENV['ASC_KEY_ID']}.p8")
+    UI.user_error!(
+      "App 'com.jasonhorga.vox' does not exist on App Store Connect.\n" \
+      "Please create it manually at https://appstoreconnect.apple.com\n" \
+      "  • Bundle ID: com.jasonhorga.vox\n" \
+      "  • App Name: Vox Input\n" \
+      "  • Primary Language: 简体中文\n" \
+      "  • SKU: com.jasonhorga.vox"
+    )
+  end
+
+  desc "One-time bootstrap: create/signing assets in match repo (run manually, never in CI)"
+  lane :bootstrap_signing do
+    api_key = load_asc_api_key!
+    ensure_match_env!
+
+    create_keychain(
+      name: "vox-ci-signing",
+      password: ENV["MATCH_KEYCHAIN_PASSWORD"],
+      default_keychain: true,
+      unlock: true,
+      timeout: 3600
+    )
+
+    match(
+      api_key: api_key,
+      type: "appstore",
+      readonly: false,
+      storage_mode: "git",
+      git_url: ENV["MATCH_GIT_URL"],
+      app_identifier: [
+        "com.jasonhorga.vox",
+        "com.jasonhorga.vox.keyboard"
+      ],
+      keychain_name: "vox-ci-signing",
+      keychain_password: ENV["MATCH_KEYCHAIN_PASSWORD"],
+      force_for_new_devices: false
+    )
+
+    UI.success("match bootstrap complete. Certificates/profiles are now persisted in match git repo.")
+  end
+
+  desc "Build and upload to TestFlight (always reuses persisted cert/profile)"
+  lane :beta do
+    api_key = load_asc_api_key!
+    ensure_match_env!
+    ensure_app_exists!
+
+    create_keychain(
+      name: "vox-ci-signing",
+      password: ENV["MATCH_KEYCHAIN_PASSWORD"],
+      default_keychain: true,
+      unlock: true,
+      timeout: 3600
+    )
+
+    match(
+      api_key: api_key,
+      type: "appstore",
+      readonly: true,
+      storage_mode: "git",
+      git_url: ENV["MATCH_GIT_URL"],
+      app_identifier: [
+        "com.jasonhorga.vox",
+        "com.jasonhorga.vox.keyboard"
+      ],
+      keychain_name: "vox-ci-signing",
+      keychain_password: ENV["MATCH_KEYCHAIN_PASSWORD"]
+    )
+
     begin
-      File.write(tmp_key_path, clean_key)
-      UI.message("Wrote temporary API key to #{tmp_key_path}")
-
-      # ── 4. Increment build number from TestFlight ──
-      begin
-        latest_build = latest_testflight_build_number(
-          api_key: api_key,
-          app_identifier: "com.jasonhorga.vox"
-        )
-      rescue => e
-        UI.important("Could not fetch latest build number (#{e.message}), starting from 0")
-        latest_build = 0
-      end
-
-      new_build_number = latest_build + 1
-      UI.message("Setting build number to #{new_build_number}")
-
-      increment_build_number(
-        build_number: new_build_number
-      )
-
-      # Also sync keyboard extension build number
-      increment_build_number(
-        build_number: new_build_number,
-        xcodeproj: "VoxInput.xcodeproj"
-      )
-
-      # ── 5. Build (xcodebuild automatic signing via API key) ──
-      build_app(
-        project: "VoxInput.xcodeproj",
-        scheme: "VoxInput",
-        configuration: "Release",
-        output_directory: "build",
-        output_name: "VoxInput.ipa",
-        export_method: "app-store",
-        clean: true,
-        xcargs: [
-          "-allowProvisioningUpdates",
-          "-authenticationKeyPath #{tmp_key_path.shellescape}",
-          "-authenticationKeyID #{ENV['ASC_KEY_ID'].shellescape}",
-          "-authenticationKeyIssuerID #{ENV['ASC_ISSUER_ID'].shellescape}",
-          "CODE_SIGN_STYLE=Automatic",
-          "DEVELOPMENT_TEAM=JGBNJD565F"
-        ].join(" ")
-      )
-
-      # ── 6. Upload to TestFlight ──
-      upload_to_testflight(
+      latest_build = latest_testflight_build_number(
         api_key: api_key,
-        skip_waiting_for_build_processing: true,
-        distribute_external: false,
-        changelog: "Automated build from CI"
+        app_identifier: "com.jasonhorga.vox"
       )
-    ensure
-      if File.exist?(tmp_key_path)
-        File.delete(tmp_key_path)
-        UI.message("Deleted temporary API key #{tmp_key_path}")
-      end
+    rescue => e
+      UI.important("Could not fetch latest build number (#{e.message}), starting from 0")
+      latest_build = 0
     end
+
+    new_build_number = latest_build + 1
+    UI.message("Setting build number to #{new_build_number}")
+
+    increment_build_number(build_number: new_build_number)
+    increment_build_number(
+      build_number: new_build_number,
+      xcodeproj: "VoxInput.xcodeproj"
+    )
+
+    build_app(
+      project: "VoxInput.xcodeproj",
+      scheme: "VoxInput",
+      configuration: "Release",
+      output_directory: "build",
+      output_name: "VoxInput.ipa",
+      export_method: "app-store",
+      clean: true,
+      export_options: {
+        signingStyle: "manual",
+        provisioningProfiles: {
+          "com.jasonhorga.vox" => "match AppStore com.jasonhorga.vox",
+          "com.jasonhorga.vox.keyboard" => "match AppStore com.jasonhorga.vox.keyboard"
+        }
+      },
+      xcargs: "CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM=JGBNJD565F"
+    )
+
+    upload_to_testflight(
+      api_key: api_key,
+      skip_waiting_for_build_processing: true,
+      distribute_external: false,
+      changelog: "Automated build from CI"
+    )
   end
 end

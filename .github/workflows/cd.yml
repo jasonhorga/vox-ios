@@ -40,11 +40,25 @@ jobs:
           ruby-version: '3.2'
           bundler-cache: true    # Caches gems based on Gemfile.lock
 
+      - name: Validate signing reuse secrets
+        env:
+          MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          MATCH_KEYCHAIN_PASSWORD: ${{ secrets.MATCH_KEYCHAIN_PASSWORD }}
+        run: |
+          test -n "$MATCH_GIT_URL" || (echo "❌ Missing MATCH_GIT_URL" && exit 1)
+          test -n "$MATCH_PASSWORD" || (echo "❌ Missing MATCH_PASSWORD" && exit 1)
+          test -n "$MATCH_KEYCHAIN_PASSWORD" || (echo "❌ Missing MATCH_KEYCHAIN_PASSWORD" && exit 1)
+          echo "✅ match secrets are present (reuse mode)"
+
       - name: Run Fastlane Beta
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+          MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          MATCH_KEYCHAIN_PASSWORD: ${{ secrets.MATCH_KEYCHAIN_PASSWORD }}
         run: bundle exec fastlane beta
 
       - name: Upload IPA artifact
