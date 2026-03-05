@@ -21,7 +21,7 @@ platform :ios do
       key_id: ENV["ASC_KEY_ID"],
       issuer_id: ENV["ASC_ISSUER_ID"],
       key_content: clean_key,
-      is_key_content_base64: true,
+      is_key_content_base64: false,
       in_house: false
     )
 
@@ -71,6 +71,9 @@ platform :ios do
     )
 
     # ── 5. Build ──
+    # Let sigh (get_provisioning_profile) and Xcode automatically resolve
+    # provisioning profiles.  We deliberately omit provisioningProfiles from
+    # export_options so the build uses whatever profiles sigh downloaded.
     build_app(
       project: "VoxInput.xcodeproj",
       scheme: "VoxInput",
@@ -78,12 +81,6 @@ platform :ios do
       output_directory: "build",
       output_name: "VoxInput.ipa",
       export_method: "app-store",
-      export_options: {
-        provisioningProfiles: {
-          "com.jasonhorga.vox" => "match AppStore com.jasonhorga.vox",
-          "com.jasonhorga.vox.keyboard" => "match AppStore com.jasonhorga.vox.keyboard"
-        }
-      },
       clean: true
     )
 
