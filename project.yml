@@ -38,7 +38,6 @@ targets:
         MARKETING_VERSION: "1.0.0"
         CURRENT_PROJECT_VERSION: "1"
         CODE_SIGN_ENTITLEMENTS: VoxInput/VoxInput.entitlements
-        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES: true
     info:
       path: VoxInput/Info.plist
@@ -50,7 +49,6 @@ targets:
         CFBundlePackageType: "$(PRODUCT_TYPE)"
         CFBundleExecutable: "$(EXECUTABLE_NAME)"
         CFBundleIdentifier: "$(PRODUCT_BUNDLE_IDENTIFIER)"
-        CFBundleIconName: AppIcon
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
