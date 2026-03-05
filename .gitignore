@@ -11,3 +11,13 @@ DerivedData/
 *.xcodeproj
 opencode.json
 .env
+
+# Fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/**/*.png
+fastlane/test_output
+
+# Bundler
+vendor/bundle
+.bundle

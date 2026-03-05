@@ -1,0 +1,56 @@
+name: CD — TestFlight
+
+on:
+  push:
+    tags:
+      - 'v*'          # Triggered by version tags (e.g. v1.0.0)
+  workflow_dispatch:   # Manual trigger from GitHub UI
+    inputs:
+      notes:
+        description: 'Release notes for this build'
+        required: false
+        default: 'Manual build'
+
+concurrency:
+  group: cd-testflight
+  cancel-in-progress: false   # Don't cancel in-flight uploads
+
+jobs:
+  deploy:
+    name: Build & Deploy to TestFlight
+    runs-on: macos-15
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_16.2.app
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+          bundler-cache: true    # Caches gems based on Gemfile.lock
+
+      - name: Run Fastlane Beta
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+        run: bundle exec fastlane beta
+
+      - name: Upload IPA artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: VoxInput-${{ github.ref_name }}
+          path: build/VoxInput.ipa
+          retention-days: 30

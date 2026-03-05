@@ -1,0 +1,87 @@
+# frozen_string_literal: true
+
+default_platform(:ios)
+
+platform :ios do
+  desc "Build and upload to TestFlight"
+  lane :beta do
+    # ── 1. Load App Store Connect API Key ──
+    api_key = app_store_connect_api_key(
+      key_id: ENV["ASC_KEY_ID"],
+      issuer_id: ENV["ASC_ISSUER_ID"],
+      key_content: ENV["ASC_PRIVATE_KEY"],
+      is_key_content_base64: true,
+      in_house: false
+    )
+
+    # ── 2. Ensure App exists on App Store Connect ──
+    produce(
+      app_identifier: "com.jasonhorga.vox",
+      app_name: "Vox Input",
+      language: "zh-Hans",
+      app_version: "1.0.0",
+      sku: "com.jasonhorga.vox",
+      skip_itc: false,
+      skip_devcenter: false
+    )
+
+    # ── 3. Code Signing (API Key auto-manages) ──
+    get_certificates(
+      api_key: api_key,
+      platform: "ios"
+    )
+
+    # Main app provisioning profile
+    get_provisioning_profile(
+      api_key: api_key,
+      app_identifier: "com.jasonhorga.vox",
+      platform: "ios"
+    )
+
+    # Keyboard extension provisioning profile
+    get_provisioning_profile(
+      api_key: api_key,
+      app_identifier: "com.jasonhorga.vox.keyboard",
+      platform: "ios"
+    )
+
+    # ── 4. Increment build number from TestFlight ──
+    increment_build_number(
+      build_number: latest_testflight_build_number(
+        api_key: api_key,
+        app_identifier: "com.jasonhorga.vox"
+      ) + 1
+    )
+
+    # Also sync keyboard extension build number
+    increment_build_number(
+      build_number: lane_context[SharedValues::BUILD_NUMBER],
+      xcodeproj: "VoxInput.xcodeproj"
+    )
+
+    # ── 5. Build ──
+    build_app(
+      project: "VoxInput.xcodeproj",
+      scheme: "VoxInput",
+      configuration: "Release",
+      output_directory: "build",
+      output_name: "VoxInput.ipa",
+      export_method: "app-store",
+      export_options: {
+        provisioningProfiles: {
+          "com.jasonhorga.vox" => "match AppStore com.jasonhorga.vox",
+          "com.jasonhorga.vox.keyboard" => "match AppStore com.jasonhorga.vox.keyboard"
+        }
+      },
+      clean: true
+    )
+
+    # ── 6. Upload to TestFlight ──
+    upload_to_testflight(
+      api_key: api_key,
+      skip_waiting_for_build_processing: true,
+      distribute_external: false,
+      changelog: "Automated build from CI"
+    )
+  end
+end
