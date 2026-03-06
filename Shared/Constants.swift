@@ -86,8 +86,19 @@ enum Constants {
         static let recordButtonSize: CGFloat = 80.0
     }
     
+    // MARK: - Daemon IPC
+
+    enum Daemon {
+        /// IPC 命令轮询间隔（秒）
+        static let commandPollInterval: TimeInterval = 0.20
+        /// 心跳刷新间隔（秒）
+        static let heartbeatInterval: TimeInterval = 1.0
+        /// 键盘侧判定主 App 无响应超时（秒）
+        static let heartbeatTimeout: TimeInterval = 6.0
+    }
+
     // MARK: - 键盘扩展
-    
+
     enum Keyboard {
         /// 键盘扩展默认高度（fallback）
         static let defaultHeight: CGFloat = 260.0
@@ -103,6 +114,8 @@ enum Constants {
         static let memoryLimit: Int = 60 * 1024 * 1024  // 60MB
         /// 状态消息自动清除延迟（秒）
         static let statusClearDelay: TimeInterval = 2.0
+        /// 键盘轮询 IPC 状态间隔（秒）
+        static let ipcPollInterval: TimeInterval = 0.20
         
         /// 根据屏幕高度和安全区域动态计算键盘高度
         /// - Parameters:

@@ -91,6 +91,19 @@ struct SettingsView: View {
                 } footer: {
                     Text("识别完成后自动翻译为目标语言（需要消耗额外 API 调用）")
                 }
+
+                // MARK: - 后台语音守护
+                Section {
+                    Picker("后台语音待机时长", selection: $config.daemonStandbyDuration) {
+                        ForEach(DaemonStandbyDuration.allCases, id: \.self) { duration in
+                            Text(duration.displayName).tag(duration)
+                        }
+                    }
+                } header: {
+                    Text("后台语音守护")
+                } footer: {
+                    Text("主 App 作为后台守护进程时，空闲超过该时长将自动休眠并释放音频会话")
+                }
                 
                 // MARK: - 关于
                 Section {

@@ -1,7 +1,7 @@
 // KeyboardState.swift
 // VoxInputKeyboard
 //
-// 键盘扩展状态机：改为「跳转主 App 录音」模式
+// 键盘扩展状态机：Remote Control + App Group IPC
 
 import Foundation
 import Observation
@@ -9,75 +9,86 @@ import AVFoundation
 
 /// 键盘扩展状态
 enum KeyboardPhase: Equatable {
-    /// 空闲，等待用户操作
     case idle
-    /// 正在录音（保留枚举值，兼容旧 UI）
     case recording
-    /// 正在处理（当前用于「正在打开主 App」）
     case processing
-    /// 操作完成
     case done(String)
-    /// 发生错误
     case error(String)
 }
 
-/// 键盘扩展状态管理器
-/// 录音能力已迁移到主 App，键盘仅负责：
-/// 1) 权限/环境提示
-/// 2) 拉起主 App
-/// 3) 展示状态
 @Observable
 @MainActor
 final class KeyboardState {
 
-    // MARK: - 可观察状态
+    // MARK: - Observable State
 
-    /// 当前阶段
     private(set) var phase: KeyboardPhase = .idle
-
-    /// 状态消息（显示在键盘 UI 上）
     private(set) var statusMessage: String = ""
 
-    /// 当前音频电平（兼容旧 UI，占位）
+    /// 当前音频电平（键盘不再本地录音，保留占位）
     private(set) var currentLevel: Float = 0.0
-
-    /// 电平历史（兼容旧 UI，占位）
+    /// 电平历史（保留占位，兼容旧 UI）
     private(set) var levelHistory: [Float] = []
 
-    /// 是否有 Full Access 权限
     private(set) var hasFullAccess: Bool = false
-
-    /// 是否有麦克风权限（仅用于展示，不再阻断键盘侧流程）
     private(set) var hasMicPermission: Bool = false
-
-    /// 是否在密码输入框中
     private(set) var isSecureInput: Bool = false
 
-    /// 输入上下文提示（保留字段，供后续增强）
     var inputContextHint: String?
 
-    // MARK: - 共享配置
+    /// 当前 IPC 守护进程状态字符串
+    private(set) var daemonState: String = "dead"
 
-    /// 共享配置（保留 reload）
+    /// 最近一次 daemon 错误
+    private(set) var daemonErrorMessage: String?
+
+    // MARK: - IPC Internals
+
+    private let defaults = AppGroup.sharedDefaults
     let config = SharedConfigStore.shared
 
-    // MARK: - 状态更新
+    private var ipcTimer: Timer?
+    private var lastResultID: Int = 0
+    private var lastHeartbeatAt: TimeInterval = 0
 
-    /// 检查环境权限
+    private var openAppHandler: ((URL) -> Bool)?
+    private var insertTextHandler: ((String) -> Void)?
+
+    // MARK: - Wiring
+
+    /// 由 ViewController 注入桥接能力
+    func bindHandlers(openApp: @escaping (URL) -> Bool, insertText: @escaping (String) -> Void) {
+        self.openAppHandler = openApp
+        self.insertTextHandler = insertText
+    }
+
+    // MARK: - Lifecycle
+
+    func activate() {
+        config.reload()
+        checkEnvironment()
+        startIPCMonitoringIfNeeded()
+        updateFromIPC()
+    }
+
+    func deactivate() {
+        ipcTimer?.invalidate()
+        ipcTimer = nil
+    }
+
+    // MARK: - Environment
+
     func checkEnvironment(systemHasFullAccess: Bool? = nil) {
-        if let systemHasFullAccess {
-            hasFullAccess = systemHasFullAccess
+        if let value = systemHasFullAccess {
+            hasFullAccess = value
         } else {
             hasFullAccess = checkFullAccess()
         }
 
-        // 键盘侧不再录音，该值仅用于 UI 诊断展示
         hasMicPermission = checkMicPermission()
-
         SharedLogger.info("环境检查: fullAccess=\(hasFullAccess), mic=\(hasMicPermission)")
     }
 
-    /// 检测是否在密码输入框中
     func updateSecureInputState(_ isSecure: Bool) {
         isSecureInput = isSecure
         if isSecure {
@@ -85,10 +96,8 @@ final class KeyboardState {
         }
     }
 
-    // MARK: - 拉起主 App（替代键盘内录音）
+    // MARK: - Recording (Remote Control)
 
-    /// 开始流程：准备拉起主 App 录音
-    /// - Returns: 是否通过前置校验
     @discardableResult
     func startRecording() -> Bool {
         config.reload()
@@ -109,48 +118,154 @@ final class KeyboardState {
             return false
         }
 
-        phase = .processing
-        statusMessage = "正在打开 Vox Input..."
-        SharedLogger.info("键盘侧开始主 App 跳转录音流程")
+        // 守护进程睡眠或心跳超时 -> 极速闪跳唤醒
+        if shouldWakeMainApp() {
+            phase = .processing
+            statusMessage = "正在唤醒 Vox Input..."
+            let opened = openMainAppForWakeup()
+            if !opened {
+                phase = .error("无法打开 Vox Input")
+                statusMessage = "打开 Vox Input 失败，请手动打开应用"
+                scheduleReset()
+                return false
+            }
+        }
+
+        sendCommand(.start)
+        phase = .recording
+        statusMessage = "录音中..."
         return true
     }
 
-    /// 完成主 App 拉起结果回传
-    func finishOpenApp(opened: Bool) {
-        if opened {
-            phase = .done("请在 Vox Input 中完成录音")
-            statusMessage = "已跳转主 App，请录音后返回"
-        } else {
-            phase = .error("无法打开 Vox Input")
-            statusMessage = "打开 Vox Input 失败，请手动打开应用"
-        }
-        scheduleReset()
+    func stopRecording() {
+        guard phase == .recording else { return }
+        sendCommand(.stop)
+        phase = .processing
+        statusMessage = "识别中..."
     }
 
-    /// 键盘注入了主 App 回传文本后的状态更新
-    func markPendingInputInserted(_ text: String) {
-        phase = .done("已输入：\(text)")
-        statusMessage = "已从 Vox Input 注入文本"
-        scheduleReset()
-    }
-
-    /// 取消（重置）
     func cancelRecording() {
+        sendCommand(.cancel)
         phase = .idle
         statusMessage = ""
-        currentLevel = 0.0
+        currentLevel = 0
     }
 
-    // MARK: - 权限检查
+    // MARK: - IPC Polling
 
-    /// 检查 Full Access（Open Access）权限
+    private func startIPCMonitoringIfNeeded() {
+        guard ipcTimer == nil else { return }
+
+        ipcTimer = Timer.scheduledTimer(withTimeInterval: Constants.Keyboard.ipcPollInterval, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.updateFromIPC()
+            }
+        }
+    }
+
+    private func updateFromIPC() {
+        let state = defaults.string(forKey: AppGroup.ipcStateKey) ?? "dead"
+        daemonState = state
+        daemonErrorMessage = defaults.string(forKey: AppGroup.ipcErrorKey)
+        lastHeartbeatAt = defaults.double(forKey: AppGroup.ipcHeartbeatKey)
+
+        if let inserted = consumeResultIfNeeded() {
+            insertTextHandler?(inserted)
+            phase = .done("已输入：\(inserted)")
+            statusMessage = "已注入文本"
+            scheduleReset()
+            return
+        }
+
+        syncPhaseWithDaemonState(state)
+    }
+
+    private func syncPhaseWithDaemonState(_ state: String) {
+        switch state {
+        case "recording":
+            phase = .recording
+            statusMessage = "录音中..."
+        case "processing":
+            phase = .processing
+            statusMessage = "识别中..."
+        case "error":
+            let message = daemonErrorMessage ?? "识别失败"
+            phase = .error(message)
+            statusMessage = message
+            scheduleReset()
+        case "idle":
+            if case .recording = phase {
+                phase = .processing
+                statusMessage = "识别中..."
+            }
+        case "sleeping", "dead":
+            if case .recording = phase {
+                phase = .error("守护进程已休眠")
+                statusMessage = "守护进程已休眠，请重试"
+                scheduleReset()
+            }
+        default:
+            break
+        }
+    }
+
+    private func consumeResultIfNeeded() -> String? {
+        let resultID = defaults.integer(forKey: AppGroup.ipcResultIDKey)
+        guard resultID > 0, resultID != lastResultID else { return nil }
+
+        lastResultID = resultID
+        guard let text = defaults.string(forKey: AppGroup.ipcResultKey), !text.isEmpty else {
+            return nil
+        }
+
+        defaults.removeObject(forKey: AppGroup.ipcResultKey)
+        defaults.synchronize()
+        return text
+    }
+
+    // MARK: - Command / Wakeup
+
+    private enum IPCCommand: String {
+        case start
+        case stop
+        case cancel
+    }
+
+    private func sendCommand(_ command: IPCCommand) {
+        let nextID = defaults.integer(forKey: AppGroup.ipcCommandIDKey) + 1
+        defaults.set(command.rawValue, forKey: AppGroup.ipcCommandKey)
+        defaults.set(nextID, forKey: AppGroup.ipcCommandIDKey)
+        defaults.set(Date().timeIntervalSince1970, forKey: AppGroup.ipcCommandAtKey)
+        defaults.synchronize()
+    }
+
+    private func shouldWakeMainApp() -> Bool {
+        if daemonState == "sleeping" || daemonState == "dead" || daemonState.isEmpty {
+            return true
+        }
+
+        guard lastHeartbeatAt > 0 else { return true }
+        let delta = Date().timeIntervalSince1970 - lastHeartbeatAt
+        return delta > Constants.Daemon.heartbeatTimeout
+    }
+
+    private func openMainAppForWakeup() -> Bool {
+        guard let handler = openAppHandler,
+              let url = URL(string: "voxinput://record?source=keyboard&mode=wakeup")
+        else {
+            return false
+        }
+        return handler(url)
+    }
+
+    // MARK: - Permission checks
+
     private func checkFullAccess() -> Bool {
         let defaults = AppGroup.sharedDefaults
         defaults.set(true, forKey: "vox.keyboard.accessCheck")
         return defaults.synchronize()
     }
 
-    /// 检查麦克风权限（仅用于诊断/展示）
     private func checkMicPermission() -> Bool {
         if #available(iOS 17.0, *) {
             let permission = AVAudioApplication.shared.recordPermission
@@ -175,9 +290,8 @@ final class KeyboardState {
         }
     }
 
-    // MARK: - 辅助方法
+    // MARK: - Utils
 
-    /// 延迟重置状态到 idle
     private func scheduleReset() {
         Task {
             try? await Task.sleep(nanoseconds: UInt64(Constants.Keyboard.statusClearDelay * 1_000_000_000))

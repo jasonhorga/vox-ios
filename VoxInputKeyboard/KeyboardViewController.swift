@@ -44,6 +44,9 @@ class KeyboardViewController: UIInputViewController {
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         checkEnvironment()
+        Task { @MainActor in
+            keyboardState.activate()
+        }
     }
 
     override func viewDidAppear(_ animated: Bool) {
@@ -51,11 +54,15 @@ class KeyboardViewController: UIInputViewController {
         // 再次检查，确保状态最新
         checkEnvironment()
 
-        // 键盘被唤起时尝试注入主 App 已准备好的文本
-        injectPendingInputIfNeeded()
-
         // 安全区域在 viewDidAppear 后才准确，刷新键盘高度
         updateKeyboardHeight()
+    }
+
+    override func viewDidDisappear(_ animated: Bool) {
+        super.viewDidDisappear(animated)
+        Task { @MainActor in
+            keyboardState.deactivate()
+        }
     }
 
     override func viewDidLayoutSubviews() {
@@ -90,6 +97,15 @@ class KeyboardViewController: UIInputViewController {
 
     /// 设置 SwiftUI 键盘视图
     private func setupKeyboardView() {
+        keyboardState.bindHandlers(
+            openApp: { [weak self] url in
+                self?.openURLViaResponderChain(url) ?? false
+            },
+            insertText: { [weak self] text in
+                self?.textDocumentProxy.insertText(text)
+            }
+        )
+
         let state = keyboardState
         let needsGlobe = needsInputModeSwitchKey
 
@@ -153,18 +169,15 @@ class KeyboardViewController: UIInputViewController {
     private func handleRecordStart() {
         Task { @MainActor in
             keyboardState.inputContextHint = textDocumentProxy.documentContextBeforeInput
-
-            guard keyboardState.startRecording() else { return }
-
-            let url = URL(string: "voxinput://record")!
-            let opened = openURLViaResponderChain(url)
-            keyboardState.finishOpenApp(opened: opened)
+            _ = keyboardState.startRecording()
         }
     }
 
-    /// 处理录音停止（新方案中无需操作）
+    /// 处理录音停止（发送 stop 指令给守护进程）
     private func handleRecordStop() {
-        // no-op：录音动作已迁移到主 App
+        Task { @MainActor in
+            keyboardState.stopRecording()
+        }
     }
 
     /// 使用 UIResponder 链尝试打开 URL（键盘扩展不可直接用 UIApplication.shared.open）
@@ -184,23 +197,6 @@ class KeyboardViewController: UIInputViewController {
         return false
     }
 
-    /// 键盘被重新唤起时，从 App Group 读取待注入文本并插入
-    private func injectPendingInputIfNeeded() {
-        let defaults = AppGroup.sharedDefaults
-        let key = AppGroup.pendingInputKey
-
-        guard let text = defaults.string(forKey: key), !text.isEmpty else {
-            return
-        }
-
-        textDocumentProxy.insertText(text)
-        defaults.removeObject(forKey: key)
-        defaults.synchronize()
-
-        Task { @MainActor in
-            keyboardState.markPendingInputInserted(text)
-        }
-    }
 }
 
 // MARK: - 键盘内容视图（根据权限状态切换）

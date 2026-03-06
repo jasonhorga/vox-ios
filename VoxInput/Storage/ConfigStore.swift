@@ -76,6 +76,12 @@ final class ConfigStore {
         get { store.translationMode }
         set { store.translationMode = newValue }
     }
+
+    /// 后台守护进程待机时长
+    var daemonStandbyDuration: DaemonStandbyDuration {
+        get { store.daemonStandbyDuration }
+        set { store.daemonStandbyDuration = newValue }
+    }
     
     // MARK: - 初始化
     

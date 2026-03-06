@@ -7,6 +7,32 @@
 import Foundation
 import Observation
 
+/// 后台语音守护进程待机时长
+/// - minutes(3): 3 分钟空闲后休眠
+/// - minutes(10): 10 分钟空闲后休眠（默认）
+/// - never: 永不自动休眠
+enum DaemonStandbyDuration: String, CaseIterable, Codable {
+    case minutes3 = "3m"
+    case minutes10 = "10m"
+    case never = "never"
+
+    var displayName: String {
+        switch self {
+        case .minutes3: return "3 分钟"
+        case .minutes10: return "10 分钟"
+        case .never: return "永久待机"
+        }
+    }
+
+    var seconds: TimeInterval? {
+        switch self {
+        case .minutes3: return 3 * 60
+        case .minutes10: return 10 * 60
+        case .never: return nil
+        }
+    }
+}
+
 /// 共享配置存储
 /// - 非敏感配置（ASR provider、URL 等）存储在 App Group UserDefaults
 /// - 敏感数据（API Key）存储在 Keychain（共享 Access Group）
@@ -57,6 +83,11 @@ final class SharedConfigStore {
     var translationMode: TranslationMode {
         didSet { saveString(translationMode.rawValue, forKey: .translationMode) }
     }
+
+    /// 后台语音守护进程待机时长
+    var daemonStandbyDuration: DaemonStandbyDuration {
+        didSet { saveString(daemonStandbyDuration.rawValue, forKey: .daemonStandbyDuration) }
+    }
     
     // MARK: - API Key（敏感，存储在 Keychain）
     
@@ -80,6 +111,7 @@ final class SharedConfigStore {
         case hasCompletedSetup = "vox.app.hasCompletedSetup"
         case language = "vox.asr.language"
         case translationMode = "vox.postprocess.translationMode"
+        case daemonStandbyDuration = "vox.daemon.standbyDuration"
     }
     
     // MARK: - 初始化
@@ -109,7 +141,11 @@ final class SharedConfigStore {
         self.translationMode = TranslationMode(
             rawValue: defaults.string(forKey: Key.translationMode.rawValue) ?? ""
         ) ?? .none
-        
+
+        self.daemonStandbyDuration = DaemonStandbyDuration(
+            rawValue: defaults.string(forKey: Key.daemonStandbyDuration.rawValue) ?? ""
+        ) ?? .minutes10
+
         // 从 Keychain 加载 API Key
         self.qwenAPIKey = KeychainStore.read(key: .qwenAPIKey) ?? ""
         self.whisperAPIKey = KeychainStore.read(key: .whisperAPIKey) ?? ""
@@ -165,7 +201,13 @@ final class SharedConfigStore {
             defaults.set(lang, forKey: Key.language.rawValue)
             self.language = lang
         }
-        
+
+        if let standby = oldDefaults.string(forKey: Key.daemonStandbyDuration.rawValue),
+           let duration = DaemonStandbyDuration(rawValue: standby) {
+            defaults.set(duration.rawValue, forKey: Key.daemonStandbyDuration.rawValue)
+            self.daemonStandbyDuration = duration
+        }
+
         let setup = oldDefaults.bool(forKey: Key.hasCompletedSetup.rawValue)
         defaults.set(setup, forKey: Key.hasCompletedSetup.rawValue)
         self.hasCompletedSetup = setup
@@ -216,7 +258,11 @@ final class SharedConfigStore {
         translationMode = TranslationMode(
             rawValue: defaults.string(forKey: Key.translationMode.rawValue) ?? ""
         ) ?? .none
-        
+
+        daemonStandbyDuration = DaemonStandbyDuration(
+            rawValue: defaults.string(forKey: Key.daemonStandbyDuration.rawValue) ?? ""
+        ) ?? .minutes10
+
         qwenAPIKey = KeychainStore.read(key: .qwenAPIKey) ?? ""
         whisperAPIKey = KeychainStore.read(key: .whisperAPIKey) ?? ""
     }
@@ -242,7 +288,8 @@ final class SharedConfigStore {
         hasCompletedSetup = false
         language = "auto"
         translationMode = .none
-        
+        daemonStandbyDuration = .minutes10
+
         // 清除 Keychain
         KeychainStore.delete(key: .qwenAPIKey)
         KeychainStore.delete(key: .whisperAPIKey)
