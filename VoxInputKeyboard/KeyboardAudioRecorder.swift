@@ -5,6 +5,7 @@
 // 与主 App AudioRecorder 的关键区别：
 //   - AVAudioSession 在 extension 场景下做更保守的 fallback
 //   - 录音路径优先 App Group，并显式验证可写
+//   - AVAudioRecorder 失败时自动回退 AVAudioEngine（规避 record() returned false）
 //   - 无 Observation 依赖（通过回调通知状态）
 
 import AVFoundation
@@ -15,49 +16,63 @@ private let log = OSLog(subsystem: "com.jasonhorga.vox.keyboard", category: "Key
 
 /// 键盘扩展专用录音管理器
 final class KeyboardAudioRecorder: NSObject {
-    
+
     // MARK: - 状态
-    
+
     /// 当前是否正在录音
     private(set) var isRecording: Bool = false
-    
+
     // MARK: - 回调
-    
+
     /// 电平更新回调：(normalizedLevel, peakPowerDB)
     var onLevelUpdate: ((Float, Float) -> Void)?
-    
+
     /// 静音超时回调
     var onSilenceTimeout: (() -> Void)?
-    
+
     /// 录音异常结束回调
     var onRecordingInterrupted: (() -> Void)?
-    
+
     // MARK: - 私有属性
-    
+
     private var audioRecorder: AVAudioRecorder?
     private var meterTimer: Timer?
     private var recordingURL: URL?
     private let silenceDetector = SilenceDetector()
-    
+
+    /// 录音后端（AVAudioRecorder 或 AVAudioEngine）
+    private enum ActiveBackend {
+        case none
+        case recorder
+        case engine
+    }
+    private var activeBackend: ActiveBackend = .none
+
+    // AVAudioEngine fallback
+    private let audioEngine = AVAudioEngine()
+    private var audioFile: AVAudioFile?
+    private var engineTapInstalled: Bool = false
+    private var latestEnginePeakPower: Float = -160.0
+
     // MARK: - 稳定性常量
-    
+
     /// 最长录音时间（秒），超时自动停止
     private static let maxRecordingDuration: TimeInterval = 60.0
-    
+
     /// 录音失败最大重试次数
     private static let maxRetryCount: Int = 2
-    
+
     /// 超时自动停止回调
     var onMaxDurationReached: (() -> Void)?
-    
+
     /// 超时定时器
     private var timeoutTimer: Timer?
-    
+
     /// 当前重试次数
     private var retryCount: Int = 0
-    
+
     // MARK: - 录音控制
-    
+
     /// 开始录音（带重试逻辑，最多 2 次）
     /// - Throws: VoxError 如果 AudioSession 配置或录音启动失败
     func start() throws {
@@ -71,7 +86,7 @@ final class KeyboardAudioRecorder: NSObject {
 
         try attemptStart()
     }
-    
+
     /// 尝试启动录音
     private func attemptStart() throws {
         cleanupTempFile()
@@ -92,6 +107,28 @@ final class KeyboardAudioRecorder: NSObject {
 
         let url = try prepareWritableRecordingURL()
 
+        do {
+            if try startWithAVAudioRecorder(url: url, session: session) {
+                return
+            }
+
+            // AVAudioRecorder 在部分键盘扩展场景会持续 record() false，回退到 AVAudioEngine
+            os_log("AVAudioRecorder failed on all candidates, fallback to AVAudioEngine", log: log, type: .default)
+            try startWithAVAudioEngine(url: url)
+            return
+        } catch {
+            if retryCount < Self.maxRetryCount {
+                retryCount += 1
+                os_log("start failed, retry=%{public}d, error=%{public}@", log: log, type: .default, retryCount, error.localizedDescription)
+                try attemptStart()
+                return
+            }
+            throw VoxError.recordingFailed(error.localizedDescription)
+        }
+    }
+
+    /// AVAudioRecorder 路径启动（成功返回 true，失败返回 false）
+    private func startWithAVAudioRecorder(url: URL, session: AVAudioSession) throws -> Bool {
         // 候选参数：先 16k PCM（与现有 ASR 协议一致），再 44.1k PCM 兜底。
         let settingsCandidates: [[String: Any]] = [
             [
@@ -136,53 +173,114 @@ final class KeyboardAudioRecorder: NSObject {
                 }
 
                 self.audioRecorder = recorder
+                self.audioFile = nil
                 self.recordingURL = url
+                self.activeBackend = .recorder
                 self.isRecording = true
                 self.silenceDetector.reset()
 
-                os_log("recording started: %{public}@", log: log, type: .info, url.path)
+                os_log("recording started by AVAudioRecorder: %{public}@", log: log, type: .info, url.path)
                 startMeterTimer()
                 startTimeoutTimer()
-                return
+                return true
             } catch {
                 lastStartError = "init/record error (candidate=\(idx)): \(error.localizedDescription)"
                 os_log("%{public}@", log: log, type: .error, lastStartError)
             }
         }
 
-        if retryCount < Self.maxRetryCount {
-            retryCount += 1
-            try attemptStart()
-            return
-        }
-
-        throw VoxError.recordingFailed(lastStartError)
+        os_log("AVAudioRecorder all candidates failed: %{public}@", log: log, type: .error, lastStartError)
+        return false
     }
 
-    /// 键盘扩展录音会话配置（带 fallback）
-    /// 说明：优先 .record，失败后回退到 .playAndRecord + mixWithOthers
-    private func configureAudioSessionForKeyboardRecording(_ session: AVAudioSession) throws {
-        do {
-            try session.setCategory(.record, mode: .measurement, options: [])
-            try? session.setPreferredSampleRate(Constants.Audio.sampleRate)
-            try? session.setPreferredInputNumberOfChannels(Constants.Audio.channels)
-            try session.setActive(true, options: [])
-            os_log("AudioSession active with .record/.measurement", log: log, type: .info)
-            return
-        } catch {
-            os_log(".record failed, fallback to .playAndRecord: %{public}@", log: log, type: .default, error.localizedDescription)
+    /// AVAudioEngine fallback 启动（用于规避键盘扩展下 AVAudioRecorder.record() 返回 false）
+    private func startWithAVAudioEngine(url: URL) throws {
+        // 先清理旧 tap / 状态
+        audioEngine.stop()
+        if engineTapInstalled {
+            audioEngine.inputNode.removeTap(onBus: 0)
+            engineTapInstalled = false
+        }
+        audioFile = nil
+        latestEnginePeakPower = -160.0
+
+        let inputNode = audioEngine.inputNode
+        let inputFormat = inputNode.inputFormat(forBus: 0)
+
+        // 保持文件扩展名为 .wav，并使用 inputFormat.settings 避免 write(from:) 因格式不匹配失败
+        // （键盘扩展环境下稳定性优先；ASR 可接受常见 WAV/PCM 采样率）
+        let fileSettings = inputFormat.settings
+
+        let file = try AVAudioFile(forWriting: url, settings: fileSettings)
+        self.audioFile = file
+
+        inputNode.installTap(onBus: 0, bufferSize: 1024, format: inputFormat) { [weak self] buffer, _ in
+            // Tap 回调在实时音频线程，不做重操作
+            guard let self else { return }
+
+            // 更新电平（基于当前 buffer）
+            let peak = Self.peakPowerFromBuffer(buffer)
+            self.latestEnginePeakPower = peak
+
+            do {
+                try file.write(from: buffer)
+            } catch {
+                os_log("AVAudioEngine write failed: %{public}@", log: log, type: .error, error.localizedDescription)
+            }
         }
 
+        engineTapInstalled = true
+
         do {
-            try? session.setActive(false, options: .notifyOthersOnDeactivation)
-            try session.setCategory(.playAndRecord, mode: .measurement, options: [.mixWithOthers])
-            try? session.setPreferredSampleRate(Constants.Audio.sampleRate)
-            try? session.setPreferredInputNumberOfChannels(Constants.Audio.channels)
-            try session.setActive(true, options: [])
-            os_log("AudioSession active with fallback .playAndRecord", log: log, type: .info)
+            try audioEngine.start()
         } catch {
-            throw VoxError.recordingFailed("AudioSession 激活失败: \(error.localizedDescription)")
+            if engineTapInstalled {
+                inputNode.removeTap(onBus: 0)
+                engineTapInstalled = false
+            }
+            audioFile = nil
+            throw VoxError.recordingFailed("AVAudioEngine 启动失败: \(error.localizedDescription)")
         }
+
+        self.audioRecorder = nil
+        self.recordingURL = url
+        self.activeBackend = .engine
+        self.isRecording = true
+        self.silenceDetector.reset()
+
+        os_log("recording started by AVAudioEngine: %{public}@", log: log, type: .info, url.path)
+        startMeterTimer()
+        startTimeoutTimer()
+    }
+
+    /// 键盘扩展录音会话配置（带多档 fallback）
+    private func configureAudioSessionForKeyboardRecording(_ session: AVAudioSession) throws {
+        // 实测：键盘扩展中 .record/.measurement 可能路由存在但 record() 仍 false。
+        // 优先尝试 .playAndRecord/.default + mixWithOthers。
+        let candidates: [(AVAudioSession.Category, AVAudioSession.Mode, AVAudioSession.CategoryOptions)] = [
+            (.playAndRecord, .default, [.mixWithOthers]),
+            (.record, .measurement, []),
+            (.playAndRecord, .measurement, [.mixWithOthers])
+        ]
+
+        var lastError: Error?
+
+        for (idx, candidate) in candidates.enumerated() {
+            do {
+                try? session.setActive(false, options: .notifyOthersOnDeactivation)
+                try session.setCategory(candidate.0, mode: candidate.1, options: candidate.2)
+                try? session.setPreferredSampleRate(Constants.Audio.sampleRate)
+                try? session.setPreferredInputNumberOfChannels(Constants.Audio.channels)
+                try session.setActive(true, options: [])
+                os_log("AudioSession active candidate=%{public}d category=%{public}@ mode=%{public}@", log: log, type: .info, idx, candidate.0.rawValue, candidate.1.rawValue)
+                return
+            } catch {
+                lastError = error
+                os_log("AudioSession candidate=%{public}d failed: %{public}@", log: log, type: .default, idx, error.localizedDescription)
+            }
+        }
+
+        throw VoxError.recordingFailed("AudioSession 激活失败: \(lastError?.localizedDescription ?? "unknown")")
     }
 
     /// 停止录音并返回音频文件 URL
@@ -191,22 +289,39 @@ final class KeyboardAudioRecorder: NSObject {
     func stop() throws -> URL {
         stopMeterTimer()
         stopTimeoutTimer()
-        
-        guard let recorder = audioRecorder else {
+
+        guard isRecording else {
             throw VoxError.recordingFailed("没有活跃的录音会话")
         }
-        
-        recorder.stop()
-        self.audioRecorder = nil
+
+        switch activeBackend {
+        case .recorder:
+            audioRecorder?.stop()
+            audioRecorder = nil
+
+        case .engine:
+            if engineTapInstalled {
+                audioEngine.inputNode.removeTap(onBus: 0)
+                engineTapInstalled = false
+            }
+            audioEngine.stop()
+
+            audioFile = nil
+
+        case .none:
+            throw VoxError.recordingFailed("没有可停止的录音后端")
+        }
+
+        self.activeBackend = .none
         self.isRecording = false
-        
+
         // 释放 AudioSession（通知宿主 App 恢复音频）
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
-        
+
         guard let url = recordingURL else {
             throw VoxError.audioFileInvalid
         }
-        
+
         // 检查文件大小
         let attrs = try FileManager.default.attributesOfItem(atPath: url.path)
         let fileSize = attrs[.size] as? Int ?? 0
@@ -214,22 +329,37 @@ final class KeyboardAudioRecorder: NSObject {
             cleanupTempFile()
             throw VoxError.audioTooShort
         }
-        
+
         // 检查是否有有效声音
         guard silenceDetector.hasDetectedSound else {
             cleanupTempFile()
             throw VoxError.audioEmpty
         }
-        
+
         return url
     }
-    
+
     /// 取消录音
     func cancel() {
         stopMeterTimer()
         stopTimeoutTimer()
-        audioRecorder?.stop()
-        audioRecorder = nil
+
+        switch activeBackend {
+        case .recorder:
+            audioRecorder?.stop()
+            audioRecorder = nil
+        case .engine:
+            if engineTapInstalled {
+                audioEngine.inputNode.removeTap(onBus: 0)
+                engineTapInstalled = false
+            }
+            audioEngine.stop()
+            audioFile = nil
+        case .none:
+            break
+        }
+
+        activeBackend = .none
         isRecording = false
         cleanupTempFile()
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
@@ -277,20 +407,20 @@ final class KeyboardAudioRecorder: NSObject {
         let outputCount = session.currentRoute.outputs.count
         return "category=\(category), mode=\(mode), routeIn=\(inputCount), routeOut=\(outputCount)"
     }
-    
+
     // MARK: - 电平采样
-    
+
     private func startMeterTimer() {
         meterTimer = Timer.scheduledTimer(withTimeInterval: Constants.Audio.meterInterval, repeats: true) { [weak self] _ in
             self?.updateMeters()
         }
     }
-    
+
     private func stopMeterTimer() {
         meterTimer?.invalidate()
         meterTimer = nil
     }
-    
+
     /// 启动超时定时器（最长 60 秒自动停止）
     private func startTimeoutTimer() {
         timeoutTimer = Timer.scheduledTimer(withTimeInterval: Self.maxRecordingDuration, repeats: false) { [weak self] _ in
@@ -298,19 +428,28 @@ final class KeyboardAudioRecorder: NSObject {
             self.onMaxDurationReached?()
         }
     }
-    
+
     /// 停止超时定时器
     private func stopTimeoutTimer() {
         timeoutTimer?.invalidate()
         timeoutTimer = nil
     }
-    
+
     private func updateMeters() {
-        guard let recorder = audioRecorder, recorder.isRecording else { return }
-        
-        recorder.updateMeters()
-        let peak = recorder.peakPower(forChannel: 0)
-        
+        guard isRecording else { return }
+
+        let peak: Float
+        switch activeBackend {
+        case .recorder:
+            guard let recorder = audioRecorder, recorder.isRecording else { return }
+            recorder.updateMeters()
+            peak = recorder.peakPower(forChannel: 0)
+        case .engine:
+            peak = latestEnginePeakPower
+        case .none:
+            return
+        }
+
         // dB 到 0.0~1.0 映射
         let minDB: Float = -60.0
         let normalizedLevel: Float
@@ -321,18 +460,18 @@ final class KeyboardAudioRecorder: NSObject {
         } else {
             normalizedLevel = (peak - minDB) / (0 - minDB)
         }
-        
+
         // 通知回调
         onLevelUpdate?(normalizedLevel, peak)
-        
+
         // 静音检测
         if silenceDetector.update(peakPower: peak) {
             onSilenceTimeout?()
         }
     }
-    
+
     // MARK: - 文件清理
-    
+
     /// 清理临时录音文件
     func cleanupTempFile() {
         if let url = recordingURL {
@@ -340,21 +479,49 @@ final class KeyboardAudioRecorder: NSObject {
         }
         recordingURL = nil
     }
+
+    // MARK: - Helpers
+
+    /// 从 PCM 浮点 buffer 估算峰值 dB
+    private static func peakPowerFromBuffer(_ buffer: AVAudioPCMBuffer) -> Float {
+        guard let channelData = buffer.floatChannelData else { return -160.0 }
+        let frameLength = Int(buffer.frameLength)
+        guard frameLength > 0 else { return -160.0 }
+
+        let channels = Int(buffer.format.channelCount)
+        var maxSample: Float = 0.0
+
+        for channel in 0..<channels {
+            let samples = channelData[channel]
+            for i in 0..<frameLength {
+                let value = fabsf(samples[i])
+                if value > maxSample {
+                    maxSample = value
+                }
+            }
+        }
+
+        guard maxSample > 0 else { return -160.0 }
+        let db = 20.0 * log10f(maxSample)
+        return max(db, -160.0)
+    }
 }
 
 // MARK: - AVAudioRecorderDelegate
 
 extension KeyboardAudioRecorder: AVAudioRecorderDelegate {
-    
+
     func audioRecorderDidFinishRecording(_ recorder: AVAudioRecorder, successfully flag: Bool) {
         if !flag {
             isRecording = false
+            activeBackend = .none
             onRecordingInterrupted?()
         }
     }
-    
+
     func audioRecorderEncodeErrorDidOccur(_ recorder: AVAudioRecorder, error: Error?) {
         isRecording = false
+        activeBackend = .none
         onRecordingInterrupted?()
     }
 }
