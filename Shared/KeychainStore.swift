@@ -20,47 +20,15 @@ enum KeychainStore {
     
     // MARK: - Access Group 解析
     
+    /// 与 Entitlements 中 $(AppIdentifierPrefix)com.jasonhorga.vox.shared 展开后的值保持一致
+    /// 当前 Team ID 在项目中固定为 6HB84897DJ
+    private static let primaryAccessGroup = "6HB84897DJ.com.jasonhorga.vox.shared"
+    
     /// 兼容旧版（未带 TeamID 前缀）读取
     private static let legacyAccessGroup = "com.jasonhorga.vox.shared"
     
-    /// 从当前进程 entitlement 中解析 keychain-access-groups
-    private static var entitlementAccessGroups: [String] {
-        guard let task = SecTaskCreateFromSelf(nil),
-              let value = SecTaskCopyValueForEntitlement(task, "keychain-access-groups" as CFString, nil)
-        else {
-            return []
-        }
-        
-        if let groups = value as? [String] {
-            return groups
-        }
-        
-        if let group = value as? String {
-            return [group]
-        }
-        
-        return []
-    }
-    
-    /// 主读写 access group（优先 entitlement 里与本项目匹配的组）
-    private static var primaryAccessGroup: String {
-        if let matched = entitlementAccessGroups.first(where: { $0.hasSuffix("com.jasonhorga.vox.shared") }) {
-            return matched
-        }
-        return legacyAccessGroup
-    }
-    
     /// 读取时按顺序尝试（先新后旧，保证向后兼容）
-    private static var readAccessGroups: [String] {
-        var groups = entitlementAccessGroups
-        if !groups.contains(legacyAccessGroup) {
-            groups.append(legacyAccessGroup)
-        }
-        if groups.isEmpty {
-            groups = [legacyAccessGroup]
-        }
-        return groups
-    }
+    private static let readAccessGroups = [primaryAccessGroup, legacyAccessGroup]
     
     // MARK: - 读取
     
