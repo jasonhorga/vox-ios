@@ -63,7 +63,7 @@ final class QwenASR: ASRProvider {
         // 3. 构建 DashScope Chat API 请求体
         // Qwen-ASR 使用 Chat Completions 格式，音频作为 input_audio 类型发送
         let requestBody: [String: Any] = [
-            "model": "qwen2-audio-instruct",
+            "model": "qwen-audio-turbo",
             "messages": [
                 [
                     "role": "user",
