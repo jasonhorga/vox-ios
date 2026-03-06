@@ -19,7 +19,7 @@ struct VoxInputApp: App {
 
     var body: some Scene {
         WindowGroup {
-            MainView()
+            MainView(daemonService: daemonService)
                 .task {
                     daemonService.start()
                 }

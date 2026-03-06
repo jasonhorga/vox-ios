@@ -49,6 +49,7 @@ final class AudioDaemonService {
 
     private var processingTask: Task<Void, Never>?
     private var wakeObserver: DarwinNotificationObserver?
+    private var backgroundTaskID: UIBackgroundTaskIdentifier = .invalid
 
     /// 标记守护进程是否已初始化
     private(set) var isStarted = false
@@ -111,10 +112,34 @@ final class AudioDaemonService {
 
         recorder.cancel()
         stopSilentKeeperAndReleaseSession()
+        endBackgroundKeepAlive()
 
         publishState(.dead, clearError: true)
         isStarted = false
         SharedLogger.info("AudioDaemonService stopped")
+    }
+
+    /// 在 URL Scheme 唤醒时，趁 App 还在前台，提前激活音频会话并开始后台任务。
+    /// 这是解决时序竞争的关键：在 App 退入后台之前抢先占住音频会话。
+    func primeForBackgroundRecording() {
+        beginBackgroundKeepAlive(reason: "url-scheme-prime")
+
+        // 趁 App 还在前台（URL Scheme 刚唤醒），立刻激活音频会话
+        do {
+            let session = AVAudioSession.sharedInstance()
+            try session.setCategory(.playAndRecord, mode: .measurement, options: [.mixWithOthers, .defaultToSpeaker])
+            try session.setActive(true, options: [])
+            try startSilentKeeperIfNeeded(trigger: "url-scheme-prime")
+            SharedLogger.info("audio session primed via URL scheme while app is foreground")
+        } catch {
+            SharedLogger.error("primeForBackgroundRecording failed: \(error.localizedDescription)")
+        }
+
+        // 唤醒 daemon 状态机
+        if state == .sleeping || state == .dead {
+            publishState(.idle, clearError: true)
+        }
+        touchActivity()
     }
 
     // MARK: - Darwin Wake Observer
@@ -130,9 +155,20 @@ final class AudioDaemonService {
     }
 
     private func handleWakeFromKeyboard() {
+        beginBackgroundKeepAlive(reason: "darwin-wake")
         touchActivity()
         if state == .sleeping || state == .dead {
             publishState(.idle, clearError: true)
+        }
+        // 预先激活音频会话，这样当 start 命令到达时会话已经准备好
+        do {
+            let session = AVAudioSession.sharedInstance()
+            try session.setCategory(.playAndRecord, mode: .measurement, options: [.mixWithOthers, .defaultToSpeaker])
+            try session.setActive(true, options: [])
+            try startSilentKeeperIfNeeded(trigger: "darwin-wake-prime")
+            SharedLogger.info("audio session primed from Darwin wake")
+        } catch {
+            SharedLogger.error("Darwin wake audio prime failed: \(error.localizedDescription)")
         }
     }
 
@@ -196,6 +232,8 @@ final class AudioDaemonService {
     // MARK: - State Machine
 
     private func handleStartCommand() {
+        beginBackgroundKeepAlive(reason: "recording")
+
         // sleeping/dead/error 收到 start -> 先唤醒
         if state == .sleeping || state == .dead || state == .error {
             publishState(.idle, clearError: true)
@@ -216,6 +254,7 @@ final class AudioDaemonService {
             // 任何失败都立刻落盘 error 并广播，确保键盘侧不会无限等待
             publishError("录音启动失败: \(error.localizedDescription)")
             reevaluateSilentKeeper(trigger: "start-failed")
+            endBackgroundKeepAlive()
         }
     }
 
@@ -250,6 +289,7 @@ final class AudioDaemonService {
         publishState(.idle, clearError: true)
         touchActivity()
         reevaluateSilentKeeper(trigger: "cancel")
+        endBackgroundKeepAlive()
         SharedLogger.info("daemon canceled")
     }
 
@@ -258,6 +298,7 @@ final class AudioDaemonService {
     private func processAudio(url: URL) async {
         defer {
             try? FileManager.default.removeItem(at: url)
+            endBackgroundKeepAlive()
         }
 
         do {
@@ -315,6 +356,26 @@ final class AudioDaemonService {
         SharedLogger.info("daemon enter sleeping after idle \(Int(idleDuration))s")
     }
 
+    // MARK: - Background Task
+
+    private func beginBackgroundKeepAlive(reason: String) {
+        guard backgroundTaskID == .invalid else { return }
+        backgroundTaskID = UIApplication.shared.beginBackgroundTask(withName: "VoxDaemon-\(reason)") { [weak self] in
+            Task { @MainActor [weak self] in
+                self?.endBackgroundKeepAlive()
+            }
+        }
+        SharedLogger.info("background task started: \(reason)")
+    }
+
+    private func endBackgroundKeepAlive() {
+        guard backgroundTaskID != .invalid else { return }
+        let taskID = backgroundTaskID
+        backgroundTaskID = .invalid
+        UIApplication.shared.endBackgroundTask(taskID)
+        SharedLogger.info("background task ended")
+    }
+
     // MARK: - Audio Session / Silent Keeper
 
     private func ensureSessionPrimedForBackgroundStart() throws {
@@ -322,7 +383,26 @@ final class AudioDaemonService {
         try startSilentKeeperIfNeeded(trigger: "prime-before-start")
         let session = AVAudioSession.sharedInstance()
         try session.setCategory(.playAndRecord, mode: .measurement, options: [.mixWithOthers, .defaultToSpeaker])
-        try session.setActive(true, options: [])
+
+        // 重试激活音频会话，应对后台转换时序竞争（OSStatus 560557684）
+        var lastError: Error?
+        for attempt in 1...3 {
+            do {
+                try session.setActive(true, options: [])
+                if attempt > 1 {
+                    SharedLogger.info("audio session activated on retry attempt \(attempt)")
+                }
+                return
+            } catch {
+                lastError = error
+                SharedLogger.error("audio session activation attempt \(attempt)/3 failed: \(error.localizedDescription)")
+                if attempt < 3 {
+                    // 短暂等待让系统完成前后台切换
+                    Thread.sleep(forTimeInterval: Double(attempt) * 0.1)  // 100ms, 200ms
+                }
+            }
+        }
+        throw lastError ?? VoxError.recordingFailed("音频会话激活失败（3次重试均失败）")
     }
 
     private func startSilentKeeperIfNeeded(trigger: String) throws {
