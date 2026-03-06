@@ -6,6 +6,7 @@
 
 import UIKit
 import SwiftUI
+import WebKit
 
 /// 键盘扩展主控制器
 /// 职责：
@@ -114,7 +115,7 @@ class KeyboardViewController: UIInputViewController {
     private func setupKeyboardView() {
         keyboardState.bindHandlers(
             openApp: { [weak self] url in
-                self?.openURLViaResponderChain(url) ?? false
+                self?.openURLRobust(url) ?? false
             },
             insertText: { [weak self] text in
                 self?.textDocumentProxy.insertText(text)
@@ -195,21 +196,89 @@ class KeyboardViewController: UIInputViewController {
         }
     }
 
-    /// 使用 UIResponder 链尝试打开 URL（键盘扩展不可直接用 UIApplication.shared.open）
+    // MARK: - Robust URL Opening (iOS 17+ Keyboard Extension)
+
+    /// 多策略打开 URL，确保键盘扩展在 iOS 17+ 下仍能可靠唤醒主 App
+    /// 策略优先级：
+    /// 1. NSExtensionContext 隐藏 API (openURL:completionHandler:)
+    /// 2. UIResponder 链遍历找 UIApplication 调用 openURL:
+    /// 3. WKWebView JavaScript 重定向（终极保底）
+    private func openURLRobust(_ url: URL) -> Bool {
+        // 策略 1: extensionContext 隐藏的 openURL:completionHandler:
+        if openURLViaExtensionContext(url) {
+            SharedLogger.info("[openURL] 策略1(extensionContext) 已触发: \(url.absoluteString)")
+            return true
+        }
+
+        // 策略 2: UIResponder 链遍历
+        if openURLViaResponderChain(url) {
+            SharedLogger.info("[openURL] 策略2(responderChain) 已触发: \(url.absoluteString)")
+            return true
+        }
+
+        // 策略 3: WKWebView JavaScript 重定向
+        SharedLogger.info("[openURL] 策略1&2均失败，启用策略3(WKWebView): \(url.absoluteString)")
+        openURLViaWebView(url)
+        // WKWebView 异步执行，假定成功
+        return true
+    }
+
+    /// 策略 1: 利用 NSExtensionContext 的隐藏 ObjC 方法 openURL:completionHandler:
+    /// 这是 iOS 键盘扩展中最可靠的跳转方式
+    private func openURLViaExtensionContext(_ url: URL) -> Bool {
+        guard let context = extensionContext else {
+            SharedLogger.error("[openURL] extensionContext 为 nil")
+            return false
+        }
+
+        let selector = Selector(("openURL:completionHandler:"))
+        guard context.responds(to: selector) else {
+            SharedLogger.error("[openURL] extensionContext 不响应 openURL:completionHandler:")
+            return false
+        }
+
+        // 使用 NSObject 的 perform 方法调用隐藏 API
+        // openURL:(NSURL *)url completionHandler:(void (^)(BOOL))completionHandler
+        context.perform(selector, with: url, with: nil)
+        return true
+    }
+
+    /// 策略 2: 遍历 UIResponder 链找到 UIApplication 并调用 openURL:
     private func openURLViaResponderChain(_ url: URL) -> Bool {
         let selector = Selector(("openURL:"))
 
         var responder: UIResponder? = self
         while let current = responder {
-            if current.responds(to: selector) {
-                _ = current.perform(selector, with: url)
-                return true
+            // 检查是否为 UIApplication 实例（避免在中间 responder 上误触发）
+            if let application = current as? UIApplication ?? (NSStringFromClass(type(of: current)).contains("UIApplication") ? current : nil) {
+                if application.responds(to: selector) {
+                    application.perform(selector, with: url)
+                    return true
+                }
             }
             responder = current.next
         }
 
-        SharedLogger.error("无法通过 responder chain 打开 URL: \(url.absoluteString)")
+        SharedLogger.error("[openURL] responder chain 未找到 UIApplication")
         return false
+    }
+
+    /// 策略 3: 通过隐形 WKWebView 加载自定义 URL scheme
+    /// 这是终极保底方案——WKWebView 直接 loadRequest 自定义 scheme
+    private func openURLViaWebView(_ url: URL) {
+        let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 0.1, height: 0.1))
+        webView.alpha = 0
+        webView.isUserInteractionEnabled = false
+        view.addSubview(webView)
+
+        // 直接加载自定义 scheme URL，WKWebView 会触发系统 URL 处理
+        webView.load(URLRequest(url: url))
+
+        // 延迟移除 webView，给系统足够时间处理 URL scheme
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+            webView.stopLoading()
+            webView.removeFromSuperview()
+        }
     }
 
 }
