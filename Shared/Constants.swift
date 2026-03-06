@@ -116,6 +116,8 @@ enum Constants {
         static let statusClearDelay: TimeInterval = 2.0
         /// 键盘轮询 IPC 状态间隔（秒）
         static let ipcPollInterval: TimeInterval = 0.20
+        /// 键盘等待后台守护进程返回结果超时（秒）
+        static let resultTimeout: TimeInterval = 10.0
         
         /// 根据屏幕高度和安全区域动态计算键盘高度
         /// - Parameters:

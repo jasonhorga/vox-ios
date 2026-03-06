@@ -145,8 +145,8 @@ final class AudioDaemonService {
     // MARK: - State Machine
 
     private func handleStartCommand() {
-        // sleeping/dead 收到 start -> 先唤醒
-        if state == .sleeping || state == .dead {
+        // sleeping/dead/error 收到 start -> 先唤醒
+        if state == .sleeping || state == .dead || state == .error {
             publishState(.idle, clearError: true)
         }
 
@@ -162,8 +162,8 @@ final class AudioDaemonService {
             SharedLogger.info("daemon start recording")
             stopSilentKeeperIfRunning(trigger: "recording-started")
         } catch {
+            // 任何失败都先落盘 error，确保键盘侧不会无限等待
             publishError("录音启动失败: \(error.localizedDescription)")
-            publishState(.idle, clearError: false)
             reevaluateSilentKeeper(trigger: "start-failed")
         }
     }
@@ -313,8 +313,22 @@ final class AudioDaemonService {
 
     private func observeLifecycleNotifications() {
         let nc = NotificationCenter.default
+        nc.addObserver(self, selector: #selector(onWillResignActive), name: UIApplication.willResignActiveNotification, object: nil)
         nc.addObserver(self, selector: #selector(onDidEnterBackground), name: UIApplication.didEnterBackgroundNotification, object: nil)
         nc.addObserver(self, selector: #selector(onWillEnterForeground), name: UIApplication.willEnterForegroundNotification, object: nil)
+        nc.addObserver(self, selector: #selector(onDidBecomeActive), name: UIApplication.didBecomeActiveNotification, object: nil)
+    }
+
+    @objc
+    private func onWillResignActive() {
+        // 必须在真正进入后台前抢先启动保活音频，降低被系统立刻挂起概率
+        if state == .idle {
+            do {
+                try startSilentKeeperIfNeeded(trigger: "will-resign-active")
+            } catch {
+                publishError("静音保活预启动失败: \(error.localizedDescription)")
+            }
+        }
     }
 
     @objc
@@ -325,6 +339,11 @@ final class AudioDaemonService {
     @objc
     private func onWillEnterForeground() {
         reevaluateSilentKeeper(trigger: "will-enter-foreground")
+    }
+
+    @objc
+    private func onDidBecomeActive() {
+        reevaluateSilentKeeper(trigger: "did-become-active")
     }
 
     // MARK: - IPC + Helpers

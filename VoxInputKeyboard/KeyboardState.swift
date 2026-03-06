@@ -54,6 +54,13 @@ final class KeyboardState {
     private var openAppHandler: ((URL) -> Bool)?
     private var insertTextHandler: ((String) -> Void)?
 
+    /// 当前会话追踪（用于屏蔽旧状态抖动 + 超时兜底）
+    private var isRequestInFlight = false
+    private var hasSeenRecordingInCurrentRequest = false
+    private var hasSentStopInCurrentRequest = false
+    private var requestStartedAt: Date?
+    private var requestTimeoutTask: Task<Void, Never>?
+
     // MARK: - Wiring
 
     /// 由 ViewController 注入桥接能力
@@ -74,6 +81,7 @@ final class KeyboardState {
     func deactivate() {
         ipcTimer?.invalidate()
         ipcTimer = nil
+        clearRequestTracking()
     }
 
     // MARK: - Environment
@@ -131,7 +139,8 @@ final class KeyboardState {
             }
         }
 
-        sendCommand(.start)
+        beginRequestTracking()
+        _ = sendCommand(.start)
         phase = .recording
         statusMessage = "录音中..."
         return true
@@ -139,13 +148,15 @@ final class KeyboardState {
 
     func stopRecording() {
         guard phase == .recording else { return }
-        sendCommand(.stop)
+        hasSentStopInCurrentRequest = true
+        _ = sendCommand(.stop)
         phase = .processing
         statusMessage = "识别中..."
     }
 
     func cancelRecording() {
-        sendCommand(.cancel)
+        _ = sendCommand(.cancel)
+        clearRequestTracking()
         phase = .idle
         statusMessage = ""
         currentLevel = 0
@@ -170,6 +181,7 @@ final class KeyboardState {
         lastHeartbeatAt = defaults.double(forKey: AppGroup.ipcHeartbeatKey)
 
         if let inserted = consumeResultIfNeeded() {
+            clearRequestTracking()
             insertTextHandler?(inserted)
             phase = .done("已输入：\(inserted)")
             statusMessage = "已注入文本"
@@ -183,27 +195,43 @@ final class KeyboardState {
     private func syncPhaseWithDaemonState(_ state: String) {
         switch state {
         case "recording":
+            hasSeenRecordingInCurrentRequest = true
             phase = .recording
             statusMessage = "录音中..."
+
         case "processing":
+            // 避免上一轮残留 processing 把新一轮录音瞬间“顶掉”
+            if isRequestInFlight, !hasSeenRecordingInCurrentRequest, !hasSentStopInCurrentRequest {
+                return
+            }
             phase = .processing
             statusMessage = "识别中..."
+
         case "error":
+            clearRequestTracking()
             let message = daemonErrorMessage ?? "识别失败"
             phase = .error(message)
             statusMessage = message
             scheduleReset()
+
         case "idle":
+            // 新请求 start 后，daemon 可能短暂还在 idle，不能误判为 processing
+            if isRequestInFlight, !hasSeenRecordingInCurrentRequest, !hasSentStopInCurrentRequest {
+                return
+            }
             if case .recording = phase {
                 phase = .processing
                 statusMessage = "识别中..."
             }
+
         case "sleeping", "dead":
-            if case .recording = phase {
+            if isRequestInFlight || phase == .recording || phase == .processing {
+                clearRequestTracking()
                 phase = .error("守护进程已休眠")
                 statusMessage = "守护进程已休眠，请重试"
                 scheduleReset()
             }
+
         default:
             break
         }
@@ -231,12 +259,14 @@ final class KeyboardState {
         case cancel
     }
 
-    private func sendCommand(_ command: IPCCommand) {
+    @discardableResult
+    private func sendCommand(_ command: IPCCommand) -> Int {
         let nextID = defaults.integer(forKey: AppGroup.ipcCommandIDKey) + 1
         defaults.set(command.rawValue, forKey: AppGroup.ipcCommandKey)
         defaults.set(nextID, forKey: AppGroup.ipcCommandIDKey)
         defaults.set(Date().timeIntervalSince1970, forKey: AppGroup.ipcCommandAtKey)
         defaults.synchronize()
+        return nextID
     }
 
     private func shouldWakeMainApp() -> Bool {
@@ -256,6 +286,50 @@ final class KeyboardState {
             return false
         }
         return handler(url)
+    }
+
+    // MARK: - Request Watchdog
+
+    private func beginRequestTracking() {
+        clearRequestTracking()
+        isRequestInFlight = true
+        hasSeenRecordingInCurrentRequest = false
+        hasSentStopInCurrentRequest = false
+        requestStartedAt = Date()
+
+        requestTimeoutTask = Task { [weak self] in
+            let timeout = Constants.Keyboard.resultTimeout
+            try? await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
+            await MainActor.run {
+                self?.handleRequestTimeoutIfNeeded()
+            }
+        }
+    }
+
+    private func clearRequestTracking() {
+        isRequestInFlight = false
+        hasSeenRecordingInCurrentRequest = false
+        hasSentStopInCurrentRequest = false
+        requestStartedAt = nil
+        requestTimeoutTask?.cancel()
+        requestTimeoutTask = nil
+    }
+
+    private func handleRequestTimeoutIfNeeded() {
+        guard isRequestInFlight else { return }
+        guard phase == .recording || phase == .processing else {
+            clearRequestTracking()
+            return
+        }
+
+        let elapsed = Date().timeIntervalSince(requestStartedAt ?? Date())
+        guard elapsed >= Constants.Keyboard.resultTimeout else { return }
+
+        _ = sendCommand(.cancel)
+        clearRequestTracking()
+        phase = .error("后台录音超时，请打开主程序")
+        statusMessage = "后台录音超时，请打开主程序"
+        scheduleReset()
     }
 
     // MARK: - Permission checks
