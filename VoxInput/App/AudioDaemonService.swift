@@ -5,6 +5,7 @@
 
 import Foundation
 import AVFoundation
+import UIKit
 
 /// 守护进程状态
 private enum DaemonState: String {
@@ -28,7 +29,8 @@ final class AudioDaemonService {
 
     private let defaults = AppGroup.sharedDefaults
     private let config = ConfigStore.shared
-    private let recorder = AudioRecorder()
+    private let recorder = DaemonAudioEngineRecorder()
+    private let silentKeeper = SilentAudioKeeper()
     private let networkMonitor = NetworkMonitor()
 
     private var pollTimer: Timer?
@@ -44,7 +46,10 @@ final class AudioDaemonService {
     private(set) var isStarted = false
 
     func start() {
-        guard !isStarted else { return }
+        guard !isStarted else {
+            reevaluateSilentKeeper(trigger: "start-already")
+            return
+        }
         isStarted = true
 
         recorder.onMaxDurationReached = { [weak self] in
@@ -53,9 +58,17 @@ final class AudioDaemonService {
             }
         }
 
+        recorder.onRuntimeError = { [weak self] message in
+            Task { @MainActor [weak self] in
+                self?.publishError("录音运行时异常: \(message)")
+                self?.reevaluateSilentKeeper(trigger: "runtime-error")
+            }
+        }
+
         // 避免重启后重复执行旧命令
         lastCommandID = defaults.integer(forKey: AppGroup.ipcCommandIDKey)
 
+        observeLifecycleNotifications()
         publishState(.idle, clearError: true)
 
         pollTimer = Timer.scheduledTimer(withTimeInterval: Constants.Daemon.commandPollInterval, repeats: true) { [weak self] _ in
@@ -72,10 +85,13 @@ final class AudioDaemonService {
         }
 
         writeHeartbeat()
+        reevaluateSilentKeeper(trigger: "start")
         SharedLogger.info("AudioDaemonService started")
     }
 
     func stop() {
+        NotificationCenter.default.removeObserver(self)
+
         pollTimer?.invalidate()
         pollTimer = nil
         heartbeatTimer?.invalidate()
@@ -84,7 +100,7 @@ final class AudioDaemonService {
         processingTask = nil
 
         recorder.cancel()
-        releaseAudioSession()
+        stopSilentKeeperAndReleaseSession()
 
         publishState(.dead, clearError: true)
         isStarted = false
@@ -134,14 +150,21 @@ final class AudioDaemonService {
             publishState(.idle, clearError: true)
         }
 
-        guard state == .idle else { return }
+        guard state == .idle else {
+            SharedLogger.info("忽略 start：当前状态=\(state.rawValue)")
+            return
+        }
 
         do {
+            try ensureSessionPrimedForBackgroundStart()
             try recorder.start()
             publishState(.recording, clearError: true)
             SharedLogger.info("daemon start recording")
+            stopSilentKeeperIfRunning(trigger: "recording-started")
         } catch {
             publishError("录音启动失败: \(error.localizedDescription)")
+            publishState(.idle, clearError: false)
+            reevaluateSilentKeeper(trigger: "start-failed")
         }
     }
 
@@ -160,6 +183,7 @@ final class AudioDaemonService {
         } catch {
             publishError("停止录音失败: \(error.localizedDescription)")
             publishState(.idle, clearError: false)
+            reevaluateSilentKeeper(trigger: "stop-failed")
         }
     }
 
@@ -173,6 +197,7 @@ final class AudioDaemonService {
 
         publishState(.idle, clearError: true)
         touchActivity()
+        reevaluateSilentKeeper(trigger: "cancel")
         SharedLogger.info("daemon canceled")
     }
 
@@ -190,10 +215,12 @@ final class AudioDaemonService {
             publishResult(formatted)
             publishState(.idle, clearError: true)
             touchActivity()
+            reevaluateSilentKeeper(trigger: "processing-done")
             SharedLogger.info("daemon processing done")
         } catch {
             publishError("识别失败: \(error.localizedDescription)")
             publishState(.idle, clearError: false)
+            reevaluateSilentKeeper(trigger: "processing-failed")
         }
     }
 
@@ -223,19 +250,84 @@ final class AudioDaemonService {
     private func checkIdleSleepIfNeeded() {
         guard state == .idle else { return }
 
-        guard let timeout = config.daemonStandbyDuration.seconds else { return }
+        guard let timeout = config.daemonStandbyDuration.seconds else {
+            reevaluateSilentKeeper(trigger: "standby-never")
+            return
+        }
 
         let idleDuration = Date().timeIntervalSince(lastActivityAt)
         guard idleDuration >= timeout else { return }
 
-        releaseAudioSession()
+        stopSilentKeeperAndReleaseSession()
         publishState(.sleeping, clearError: true)
         SharedLogger.info("daemon enter sleeping after idle \(Int(idleDuration))s")
     }
 
-    private func releaseAudioSession() {
-        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+    // MARK: - Audio Session / Silent Keeper
+
+    private func ensureSessionPrimedForBackgroundStart() throws {
+        // 后台 start 前，先尝试保活音频确保 session 已被占用
+        try startSilentKeeperIfNeeded(trigger: "prime-before-start")
+        let session = AVAudioSession.sharedInstance()
+        try session.setCategory(.playAndRecord, mode: .measurement, options: [.mixWithOthers, .defaultToSpeaker])
+        try session.setActive(true, options: [])
     }
+
+    private func startSilentKeeperIfNeeded(trigger: String) throws {
+        try silentKeeper.startIfNeeded()
+        SharedLogger.info("silent keeper started (\(trigger))")
+    }
+
+    private func stopSilentKeeperIfRunning(trigger: String) {
+        silentKeeper.stop()
+        SharedLogger.info("silent keeper stopped (\(trigger))")
+    }
+
+    private func stopSilentKeeperAndReleaseSession() {
+        silentKeeper.stop()
+        do {
+            try AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        } catch {
+            SharedLogger.error("releaseAudioSession failed: \(error.localizedDescription)")
+        }
+    }
+
+    private func reevaluateSilentKeeper(trigger: String) {
+        let appState = UIApplication.shared.applicationState
+        let isBackground = appState == .background
+        let standbyAllowsKeepAlive = state == .idle
+
+        guard isBackground, standbyAllowsKeepAlive else {
+            stopSilentKeeperIfRunning(trigger: "reevaluate-stop-\(trigger)")
+            return
+        }
+
+        do {
+            try startSilentKeeperIfNeeded(trigger: "reevaluate-\(trigger)")
+        } catch {
+            publishError("静音保活启动失败: \(error.localizedDescription)")
+        }
+    }
+
+    // MARK: - Lifecycle
+
+    private func observeLifecycleNotifications() {
+        let nc = NotificationCenter.default
+        nc.addObserver(self, selector: #selector(onDidEnterBackground), name: UIApplication.didEnterBackgroundNotification, object: nil)
+        nc.addObserver(self, selector: #selector(onWillEnterForeground), name: UIApplication.willEnterForegroundNotification, object: nil)
+    }
+
+    @objc
+    private func onDidEnterBackground() {
+        reevaluateSilentKeeper(trigger: "did-enter-background")
+    }
+
+    @objc
+    private func onWillEnterForeground() {
+        reevaluateSilentKeeper(trigger: "will-enter-foreground")
+    }
+
+    // MARK: - IPC + Helpers
 
     private func touchActivity() {
         lastActivityAt = Date()
