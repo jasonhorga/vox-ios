@@ -11,55 +11,58 @@ import SwiftUI
 /// 职责：
 /// 1. 嵌入 SwiftUI KeyboardView
 /// 2. 管理 needsInputModeSwitchKey 地球键
-/// 3. 检查 hasFullAccess 和麦克风权限
+/// 3. 检查 hasFullAccess
 /// 4. 通过 textDocumentProxy.insertText() 注入文字
 /// 5. 检测 secureTextEntry 密码框场景
 class KeyboardViewController: UIInputViewController {
-    
+
     // MARK: - 状态
-    
+
     /// 键盘状态管理器
     private let keyboardState = KeyboardState()
-    
+
     /// SwiftUI 宿主控制器
     private var hostingController: UIHostingController<AnyView>?
-    
+
     /// 高度约束（用于动态调整键盘高度）
     private var heightConstraint: NSLayoutConstraint?
-    
+
     /// 根据设备屏幕计算的自适应键盘高度
     private var adaptiveKeyboardHeight: CGFloat {
         let screenHeight = UIScreen.main.bounds.height
         let bottomInset = view.safeAreaInsets.bottom
         return Constants.Keyboard.adaptiveHeight(screenHeight: screenHeight, bottomSafeArea: bottomInset)
     }
-    
+
     // MARK: - 生命周期
-    
+
     override func viewDidLoad() {
         super.viewDidLoad()
         setupKeyboardView()
     }
-    
+
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         checkEnvironment()
     }
-    
+
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         // 再次检查，确保状态最新
         checkEnvironment()
-        
+
+        // 键盘被唤起时尝试注入主 App 已准备好的文本
+        injectPendingInputIfNeeded()
+
         // 安全区域在 viewDidAppear 后才准确，刷新键盘高度
         updateKeyboardHeight()
     }
-    
+
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         updateKeyboardHeight()
     }
-    
+
     /// 根据当前设备屏幕和安全区域刷新键盘高度
     private func updateKeyboardHeight() {
         let newHeight = adaptiveKeyboardHeight
@@ -67,13 +70,13 @@ class KeyboardViewController: UIInputViewController {
             heightConstraint?.constant = newHeight
         }
     }
-    
+
     // MARK: - 输入上下文变化
-    
+
     override func textWillChange(_ textInput: UITextInput?) {
         super.textWillChange(textInput)
     }
-    
+
     override func textDidChange(_ textInput: UITextInput?) {
         super.textDidChange(textInput)
         // 检测密码输入框
@@ -82,14 +85,14 @@ class KeyboardViewController: UIInputViewController {
             keyboardState.updateSecureInputState(isSecure)
         }
     }
-    
+
     // MARK: - 视图设置
-    
+
     /// 设置 SwiftUI 键盘视图
     private func setupKeyboardView() {
         let state = keyboardState
         let needsGlobe = needsInputModeSwitchKey
-        
+
         // 创建键盘视图，根据权限状态显示不同内容
         let keyboardView = KeyboardContentView(
             state: state,
@@ -104,20 +107,20 @@ class KeyboardViewController: UIInputViewController {
                 self?.handleRecordStop()
             }
         )
-        
+
         let hostVC = UIHostingController(rootView: AnyView(keyboardView))
         hostVC.view.translatesAutoresizingMaskIntoConstraints = false
         hostVC.view.backgroundColor = .clear
-        
+
         // 移除 UIHostingController 的安全区域额外间距
         hostVC.additionalSafeAreaInsets = .zero
-        
+
         addChild(hostVC)
         view.addSubview(hostVC.view)
         hostVC.didMove(toParent: self)
-        
+
         let height = hostVC.view.heightAnchor.constraint(equalToConstant: adaptiveKeyboardHeight)
-        
+
         NSLayoutConstraint.activate([
             hostVC.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             hostVC.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
@@ -125,45 +128,77 @@ class KeyboardViewController: UIInputViewController {
             hostVC.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
             height
         ])
-        
+
         self.heightConstraint = height
         self.hostingController = hostVC
     }
-    
+
     // MARK: - 环境检查
-    
+
     /// 检查权限环境并更新状态
     private func checkEnvironment() {
         let systemFullAccess = self.hasFullAccess
         Task { @MainActor in
             // 检查权限环境（Full Access + 麦克风）
             keyboardState.checkEnvironment(systemHasFullAccess: systemFullAccess)
-            
+
             // 检查密码输入框
             keyboardState.updateSecureInputState(textDocumentProxy.isSecureTextEntry ?? false)
         }
     }
-    
-    // MARK: - 录音控制
-    
-    /// 处理录音开始（按下麦克风按钮）
+
+    // MARK: - 主 App 跳转录音
+
+    /// 处理录音开始（改为拉起主 App）
     private func handleRecordStart() {
         Task { @MainActor in
-            // 将光标前的文本上下文传给 ASR 作为识别提示
             keyboardState.inputContextHint = textDocumentProxy.documentContextBeforeInput
-            keyboardState.startRecording()
+
+            guard keyboardState.startRecording() else { return }
+
+            let url = URL(string: "voxinput://record")!
+            let opened = openURLViaResponderChain(url)
+            keyboardState.finishOpenApp(opened: opened)
         }
     }
-    
-    /// 处理录音停止（松开麦克风按钮）
+
+    /// 处理录音停止（新方案中无需操作）
     private func handleRecordStop() {
-        Task { @MainActor in
-            let text = await keyboardState.stopRecording()
-            
-            // 将文字注入到当前输入框
-            if let text, !text.isEmpty {
-                self.textDocumentProxy.insertText(text)
+        // no-op：录音动作已迁移到主 App
+    }
+
+    /// 使用 UIResponder 链尝试打开 URL（键盘扩展不可直接用 UIApplication.shared.open）
+    private func openURLViaResponderChain(_ url: URL) -> Bool {
+        let selector = Selector(("openURL:"))
+
+        var responder: UIResponder? = self
+        while let current = responder {
+            if current.responds(to: selector) {
+                _ = current.perform(selector, with: url)
+                return true
             }
+            responder = current.next
+        }
+
+        SharedLogger.error("无法通过 responder chain 打开 URL: \(url.absoluteString)")
+        return false
+    }
+
+    /// 键盘被重新唤起时，从 App Group 读取待注入文本并插入
+    private func injectPendingInputIfNeeded() {
+        let defaults = AppGroup.sharedDefaults
+        let key = AppGroup.pendingInputKey
+
+        guard let text = defaults.string(forKey: key), !text.isEmpty else {
+            return
+        }
+
+        textDocumentProxy.insertText(text)
+        defaults.removeObject(forKey: key)
+        defaults.synchronize()
+
+        Task { @MainActor in
+            keyboardState.markPendingInputInserted(text)
         }
     }
 }
@@ -171,34 +206,21 @@ class KeyboardViewController: UIInputViewController {
 // MARK: - 键盘内容视图（根据权限状态切换）
 
 /// 键盘内容包装视图
-/// 根据 Full Access 和麦克风权限状态显示不同的 UI
+/// 仅在 Full Access 未开启时显示引导；其余场景都允许进入主流程
 private struct KeyboardContentView: View {
-    
+
     let state: KeyboardState
     let needsGlobeKey: Bool
     let onGlobeKeyTap: () -> Void
     let onRecordStart: () -> Void
     let onRecordStop: () -> Void
-    
+
     var body: some View {
         Group {
             if !state.hasFullAccess {
                 // Full Access 未开启
                 VStack {
                     FullAccessGuideView()
-                    if needsGlobeKey {
-                        HStack {
-                            GlobeKeyView(action: onGlobeKeyTap)
-                            Spacer()
-                        }
-                        .padding(.horizontal, 8)
-                        .padding(.bottom, 4)
-                    }
-                }
-            } else if !state.hasMicPermission {
-                // 麦克风权限未授权
-                VStack {
-                    MicPermissionGuideView()
                     if needsGlobeKey {
                         HStack {
                             GlobeKeyView(action: onGlobeKeyTap)

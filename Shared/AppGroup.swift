@@ -14,7 +14,13 @@ enum AppGroup {
     
     /// 键盘扩展 Bundle ID
     static let keyboardBundleID = "com.jasonhorga.vox.keyboard"
-    
+
+    /// 键盘扩展待注入文本 Key（主 App 写入，键盘读取后清空）
+    static let pendingInputKey = "vox.keyboard.pendingInput"
+
+    /// 主 App 是否由键盘录音流程唤起（URL Scheme）
+    static let keyboardRecordRequestKey = "vox.keyboard.recordRequest"
+
     /// 共享 UserDefaults
     /// 主 App 和键盘扩展均通过此实例读写配置
     static var sharedDefaults: UserDefaults {

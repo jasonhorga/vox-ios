@@ -97,6 +97,16 @@ struct MainView: View {
             .onAppear {
                 checkInitialState()
             }
+            .onOpenURL { url in
+                handleIncomingURL(url)
+            }
+            .alert("已完成语音识别", isPresented: $appState.showReturnHint) {
+                Button("我知道了") {
+                    appState.dismissReturnHint()
+                }
+            } message: {
+                Text("文字已复制并就绪，请点击左上角返回原应用")
+            }
         }
     }
     
@@ -264,6 +274,19 @@ struct MainView: View {
             break
         @unknown default:
             break
+        }
+    }
+
+    /// 处理 URL Scheme（voxinput://record）
+    private func handleIncomingURL(_ url: URL) {
+        guard url.scheme?.lowercased() == "voxinput" else { return }
+        guard url.host?.lowercased() == "record" else { return }
+
+        appState.beginKeyboardRecordFlow()
+
+        Task {
+            // 主 App 被键盘拉起后，自动进入录音
+            await appState.startRecording()
         }
     }
 }
