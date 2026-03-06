@@ -1,0 +1,938 @@
+﻿2026-03-06T10:41:57.3372280Z Current runner version: '2.332.0'
+2026-03-06T10:41:57.3385950Z ##[group]Runner Image Provisioner
+2026-03-06T10:41:57.3386480Z Hosted Compute Agent
+2026-03-06T10:41:57.3386870Z Version: 20260213.493
+2026-03-06T10:41:57.3387300Z Commit: 5c115507f6dd24b8de37d8bbe0bb4509d0cc0fa3
+2026-03-06T10:41:57.3387780Z Build Date: 2026-02-13T00:28:41Z
+2026-03-06T10:41:57.3388230Z Worker ID: {6081e959-5703-49de-9e9d-3794114bb617}
+2026-03-06T10:41:57.3388700Z Azure Region: westus
+2026-03-06T10:41:57.3389090Z ##[endgroup]
+2026-03-06T10:41:57.3389910Z ##[group]Operating System
+2026-03-06T10:41:57.3390320Z macOS
+2026-03-06T10:41:57.3390660Z 15.7.4
+2026-03-06T10:41:57.3391000Z 24G517
+2026-03-06T10:41:57.3391340Z ##[endgroup]
+2026-03-06T10:41:57.3391700Z ##[group]Runner Image
+2026-03-06T10:41:57.3392100Z Image: macos-15-arm64
+2026-03-06T10:41:57.3392510Z Version: 20260303.0188.2
+2026-03-06T10:41:57.3393340Z Included Software: https://github.com/actions/runner-images/blob/macos-15-arm64/20260303.0188/images/macos/macos-15-arm64-Readme.md
+2026-03-06T10:41:57.3394350Z Image Release: https://github.com/actions/runner-images/releases/tag/macos-15-arm64%2F20260303.0188
+2026-03-06T10:41:57.3395020Z ##[endgroup]
+2026-03-06T10:41:57.3395790Z ##[group]GITHUB_TOKEN Permissions
+2026-03-06T10:41:57.3396750Z Contents: read
+2026-03-06T10:41:57.3397150Z Metadata: read
+2026-03-06T10:41:57.3397520Z Packages: read
+2026-03-06T10:41:57.3397880Z ##[endgroup]
+2026-03-06T10:41:57.3399280Z Secret source: Actions
+2026-03-06T10:41:57.3399750Z Prepare workflow directory
+2026-03-06T10:41:57.3634850Z Prepare all required actions
+2026-03-06T10:41:57.3665440Z Getting action download info
+2026-03-06T10:41:57.8248830Z Download action repository 'actions/checkout@v4' (SHA:34e114876b0b11c390a56381ad16ebd13914f8d5)
+2026-03-06T10:41:58.3784410Z Download action repository 'ruby/setup-ruby@v1' (SHA:19a43a6a2428d455dbd1b85344698725179c9d8c)
+2026-03-06T10:41:59.0459180Z Download action repository 'actions/upload-artifact@v4' (SHA:ea165f8d65b6e75b540449e92b4886f43607fa02)
+2026-03-06T10:41:59.3280560Z Complete job name: Build & Deploy to TestFlight
+2026-03-06T10:41:59.4293040Z ##[group]Run actions/checkout@v4
+2026-03-06T10:41:59.4293820Z with:
+2026-03-06T10:41:59.4294260Z   repository: jasonhorga/vox-ios
+2026-03-06T10:41:59.4295010Z   token: ***
+2026-03-06T10:41:59.4325710Z   ssh-strict: true
+2026-03-06T10:41:59.4326230Z   ssh-user: git
+2026-03-06T10:41:59.4326640Z   persist-credentials: true
+2026-03-06T10:41:59.4327080Z   clean: true
+2026-03-06T10:41:59.4327480Z   sparse-checkout-cone-mode: true
+2026-03-06T10:41:59.4327960Z   fetch-depth: 1
+2026-03-06T10:41:59.4328340Z   fetch-tags: false
+2026-03-06T10:41:59.4328730Z   show-progress: true
+2026-03-06T10:41:59.4330190Z   lfs: false
+2026-03-06T10:41:59.4331550Z   submodules: false
+2026-03-06T10:41:59.4332760Z   set-safe-directory: true
+2026-03-06T10:41:59.4336480Z ##[endgroup]
+2026-03-06T10:41:59.9069320Z Syncing repository: jasonhorga/vox-ios
+2026-03-06T10:41:59.9071690Z ##[group]Getting Git version info
+2026-03-06T10:41:59.9072320Z Working directory is '/Users/runner/work/vox-ios/vox-ios'
+2026-03-06T10:41:59.9074120Z [command]/opt/homebrew/bin/git version
+2026-03-06T10:41:59.9412720Z git version 2.53.0
+2026-03-06T10:41:59.9437680Z ##[endgroup]
+2026-03-06T10:41:59.9444040Z Copying '/Users/runner/.gitconfig' to '/Users/runner/work/_temp/998563a7-e41a-45e2-9474-fedad75be921/.gitconfig'
+2026-03-06T10:41:59.9450800Z Temporarily overriding HOME='/Users/runner/work/_temp/998563a7-e41a-45e2-9474-fedad75be921' before making global git config changes
+2026-03-06T10:41:59.9452150Z Adding repository directory to the temporary git global config as a safe directory
+2026-03-06T10:41:59.9459510Z [command]/opt/homebrew/bin/git config --global --add safe.directory /Users/runner/work/vox-ios/vox-ios
+2026-03-06T10:41:59.9646030Z Deleting the contents of '/Users/runner/work/vox-ios/vox-ios'
+2026-03-06T10:41:59.9652810Z ##[group]Initializing the repository
+2026-03-06T10:41:59.9654330Z [command]/opt/homebrew/bin/git init /Users/runner/work/vox-ios/vox-ios
+2026-03-06T10:42:00.0113090Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-03-06T10:42:00.0329790Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-03-06T10:42:00.0439660Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-03-06T10:42:00.0539600Z hint: call:
+2026-03-06T10:42:00.0641300Z hint:
+2026-03-06T10:42:00.0743770Z hint: 	git config --global init.defaultBranch <name>
+2026-03-06T10:42:00.0844400Z hint:
+2026-03-06T10:42:00.0948370Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-03-06T10:42:00.1047850Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-03-06T10:42:00.1150290Z hint:
+2026-03-06T10:42:00.1252550Z hint: 	git branch -m <name>
+2026-03-06T10:42:00.1359560Z hint:
+2026-03-06T10:42:00.1464490Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-03-06T10:42:00.1569670Z Initialized empty Git repository in /Users/runner/work/vox-ios/vox-ios/.git/
+2026-03-06T10:42:00.1872690Z [command]/opt/homebrew/bin/git remote add origin https://github.com/jasonhorga/vox-ios
+2026-03-06T10:42:00.1902250Z ##[endgroup]
+2026-03-06T10:42:00.1904760Z ##[group]Disabling automatic garbage collection
+2026-03-06T10:42:00.1906940Z [command]/opt/homebrew/bin/git config --local gc.auto 0
+2026-03-06T10:42:00.1956110Z ##[endgroup]
+2026-03-06T10:42:00.1963610Z ##[group]Setting up auth
+2026-03-06T10:42:00.1964730Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-03-06T10:42:00.1967130Z [command]/opt/homebrew/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-03-06T10:42:00.2587290Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-03-06T10:42:00.2922330Z [command]/opt/homebrew/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-03-06T10:42:00.4924510Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-03-06T10:42:00.5244020Z [command]/opt/homebrew/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-03-06T10:42:00.6903930Z [command]/opt/homebrew/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-03-06T10:42:00.7026710Z ##[endgroup]
+2026-03-06T10:42:00.7027770Z ##[group]Fetching the repository
+2026-03-06T10:42:00.7029040Z [command]/opt/homebrew/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +9ac90f84297bb076819489e0828505f7f40d87e6:refs/tags/v1.0.0-beta.21
+2026-03-06T10:42:01.1952800Z From https://github.com/jasonhorga/vox-ios
+2026-03-06T10:42:01.2036170Z  * [new ref]         9ac90f84297bb076819489e0828505f7f40d87e6 -> v1.0.0-beta.21
+2026-03-06T10:42:01.2067230Z ##[endgroup]
+2026-03-06T10:42:01.2068060Z ##[group]Determining the checkout info
+2026-03-06T10:42:01.2068960Z ##[endgroup]
+2026-03-06T10:42:01.2069560Z [command]/opt/homebrew/bin/git sparse-checkout disable
+2026-03-06T10:42:01.2132920Z [command]/opt/homebrew/bin/git config --local --unset-all extensions.worktreeConfig
+2026-03-06T10:42:01.2218870Z ##[group]Checking out the ref
+2026-03-06T10:42:01.2220000Z [command]/opt/homebrew/bin/git checkout --progress --force refs/tags/v1.0.0-beta.21
+2026-03-06T10:42:01.2600520Z HEAD is now at 9ac90f8 fix: pin Xcode 16.2 in CD and harden keyboard recording startup
+2026-03-06T10:42:01.2914920Z ##[endgroup]
+2026-03-06T10:42:01.3273360Z [command]/opt/homebrew/bin/git log -1 --format=%H
+2026-03-06T10:42:01.3274550Z 9ac90f84297bb076819489e0828505f7f40d87e6
+2026-03-06T10:42:01.3934720Z ##[group]Run sudo xcode-select -s /Applications/Xcode_16.2.app
+2026-03-06T10:42:01.3937620Z [36;1msudo xcode-select -s /Applications/Xcode_16.2.app[0m
+2026-03-06T10:42:01.3939180Z [36;1mxcode-select -p[0m
+2026-03-06T10:42:01.3940430Z [36;1mxcodebuild -version[0m
+2026-03-06T10:42:01.4037070Z shell: /bin/bash -e {0}
+2026-03-06T10:42:01.4051670Z ##[endgroup]
+2026-03-06T10:42:01.4878040Z /Applications/Xcode_16.2.app/Contents/Developer
+2026-03-06T10:42:04.8270830Z Xcode 16.2
+2026-03-06T10:42:04.8271820Z Build version 16C5032a
+2026-03-06T10:42:04.8311570Z ##[group]Run echo "DEVELOPER_DIR=${DEVELOPER_DIR:-<not-set>}"
+2026-03-06T10:42:04.8312030Z [36;1mecho "DEVELOPER_DIR=${DEVELOPER_DIR:-<not-set>}"[0m
+2026-03-06T10:42:04.8312380Z [36;1mxcode-select -p[0m
+2026-03-06T10:42:04.8312630Z [36;1mxcodebuild -version[0m
+2026-03-06T10:42:04.8312950Z [36;1mxcodebuild -showsdks[0m
+2026-03-06T10:42:04.8354080Z shell: /bin/bash -e {0}
+2026-03-06T10:42:04.8354340Z ##[endgroup]
+2026-03-06T10:42:04.8845580Z DEVELOPER_DIR=<not-set>
+2026-03-06T10:42:04.8893320Z /Applications/Xcode_16.2.app/Contents/Developer
+2026-03-06T10:42:04.9408790Z Xcode 16.2
+2026-03-06T10:42:04.9412320Z Build version 16C5032a
+2026-03-06T10:42:05.5466350Z DriverKit SDKs:
+2026-03-06T10:42:05.5467100Z 	DriverKit 24.2                	-sdk driverkit24.2
+2026-03-06T10:42:05.5467520Z 
+2026-03-06T10:42:05.5467770Z iOS SDKs:
+2026-03-06T10:42:05.5468160Z 	iOS 18.2                      	-sdk iphoneos18.2
+2026-03-06T10:42:05.5468480Z 
+2026-03-06T10:42:05.5468770Z iOS Simulator SDKs:
+2026-03-06T10:42:05.5469210Z 	Simulator - iOS 18.2          	-sdk iphonesimulator18.2
+2026-03-06T10:42:05.5469610Z 
+2026-03-06T10:42:05.5469820Z macOS SDKs:
+2026-03-06T10:42:05.5470200Z 	macOS 15.2                    	-sdk macosx15.2
+2026-03-06T10:42:05.5470690Z 	macOS 15.2                    	-sdk macosx15.2
+2026-03-06T10:42:05.5471000Z 
+2026-03-06T10:42:05.5471270Z tvOS SDKs:
+2026-03-06T10:42:05.5474200Z 	tvOS 18.2                     	-sdk appletvos18.2
+2026-03-06T10:42:05.5476420Z 
+2026-03-06T10:42:05.5476710Z tvOS Simulator SDKs:
+2026-03-06T10:42:05.5477190Z 	Simulator - tvOS 18.2         	-sdk appletvsimulator18.2
+2026-03-06T10:42:05.5477570Z 
+2026-03-06T10:42:05.5477790Z visionOS SDKs:
+2026-03-06T10:42:05.5478190Z 	visionOS 2.2                  	-sdk xros2.2
+2026-03-06T10:42:05.5478490Z 
+2026-03-06T10:42:05.5478760Z visionOS Simulator SDKs:
+2026-03-06T10:42:05.5479340Z 	Simulator - visionOS 2.2      	-sdk xrsimulator2.2
+2026-03-06T10:42:05.5479760Z 
+2026-03-06T10:42:05.5479960Z watchOS SDKs:
+2026-03-06T10:42:05.5480330Z 	watchOS 11.2                  	-sdk watchos11.2
+2026-03-06T10:42:05.5480670Z 
+2026-03-06T10:42:05.5481330Z watchOS Simulator SDKs:
+2026-03-06T10:42:05.5481780Z 	Simulator - watchOS 11.2      	-sdk watchsimulator11.2
+2026-03-06T10:42:05.5482190Z 
+2026-03-06T10:42:05.5525240Z ##[group]Run brew install xcodegen
+2026-03-06T10:42:05.5525640Z [36;1mbrew install xcodegen[0m
+2026-03-06T10:42:05.5561380Z shell: /bin/bash -e {0}
+2026-03-06T10:42:05.5561620Z ##[endgroup]
+2026-03-06T10:42:09.6400370Z [32m==>[0m [1mFetching downloads for: [32mxcodegen[39m[0m
+2026-03-06T10:42:10.3819180Z ✔︎ Bottle Manifest xcodegen (2.44.1)
+2026-03-06T10:42:11.1851110Z ✔︎ Bottle xcodegen (2.44.1)
+2026-03-06T10:42:11.3624860Z [34m==>[0m [1mPouring xcodegen--2.44.1.arm64_sequoia.bottle.tar.gz[0m
+2026-03-06T10:42:12.9416330Z 🍺  /opt/homebrew/Cellar/xcodegen/2.44.1: 38 files, 7.4MB
+2026-03-06T10:42:12.9851220Z ##[group]Run xcodegen generate
+2026-03-06T10:42:12.9851790Z [36;1mxcodegen generate[0m
+2026-03-06T10:42:12.9894060Z shell: /bin/bash -e {0}
+2026-03-06T10:42:12.9894360Z ##[endgroup]
+2026-03-06T10:42:13.0641060Z ⚙️  Generating plists...
+2026-03-06T10:42:13.0675980Z ⚙️  Generating project...
+2026-03-06T10:42:13.0904360Z ⚙️  Writing project...
+2026-03-06T10:42:13.1085750Z Created project at /Users/runner/work/vox-ios/vox-ios/VoxInput.xcodeproj
+2026-03-06T10:42:13.1177960Z ##[group]Run ruby/setup-ruby@v1
+2026-03-06T10:42:13.1178340Z with:
+2026-03-06T10:42:13.1178600Z   ruby-version: 3.2
+2026-03-06T10:42:13.1178900Z   bundler-cache: true
+2026-03-06T10:42:13.1179290Z   token: ***
+2026-03-06T10:42:13.1189690Z ##[endgroup]
+2026-03-06T10:42:13.2580060Z ##[group]Modifying PATH
+2026-03-06T10:42:13.2590670Z Entries removed from PATH to avoid conflicts with default Ruby:
+2026-03-06T10:42:13.2591990Z   /opt/homebrew/lib/ruby/gems/3.3.0/bin
+2026-03-06T10:42:13.2592710Z   /opt/homebrew/opt/ruby@3.3/bin
+2026-03-06T10:42:13.2596770Z Entries added to PATH to use selected Ruby:
+2026-03-06T10:42:13.2597660Z   /Users/runner/hostedtoolcache/Ruby/3.2.10/arm64/bin
+2026-03-06T10:42:13.2603430Z ##[endgroup]
+2026-03-06T10:42:13.2604070Z ##[group]Print Ruby version
+2026-03-06T10:42:13.2646910Z [command]/Users/runner/hostedtoolcache/Ruby/3.2.10/arm64/bin/ruby --version
+2026-03-06T10:42:13.2985010Z ruby 3.2.10 (2026-01-14 revision a3a6d25788) [arm64-darwin23]
+2026-03-06T10:42:13.3012850Z Took   0.04 seconds
+2026-03-06T10:42:13.3013830Z ##[endgroup]
+2026-03-06T10:42:13.3015780Z ##[group]Installing Bundler
+2026-03-06T10:42:13.3017730Z Using Bundler shipped with ruby-3.2.10
+2026-03-06T10:42:13.3019360Z Took   0.00 seconds
+2026-03-06T10:42:13.3020030Z ##[endgroup]
+2026-03-06T10:42:13.3020220Z > bundle install
+2026-03-06T10:42:13.3022330Z Setting BUNDLER_VERSION=2 for "bundle config|lock" commands below to ensure Bundler 2 is used
+2026-03-06T10:42:13.3039420Z [command]/Users/runner/hostedtoolcache/Ruby/3.2.10/arm64/bin/bundle config set --local path /Users/runner/work/vox-ios/vox-ios/vendor/bundle
+2026-03-06T10:42:13.4723990Z [command]/Users/runner/hostedtoolcache/Ruby/3.2.10/arm64/bin/bundle lock
+2026-03-06T10:42:17.7132120Z Fetching gem metadata from https://rubygems.org/........
+2026-03-06T10:42:17.7669860Z Resolving dependencies...
+2026-03-06T10:42:18.6678300Z Writing lockfile to /Users/runner/work/vox-ios/vox-ios/Gemfile.lock
+2026-03-06T10:42:18.6845720Z ##[group]Print lockfile
+2026-03-06T10:42:18.6867810Z [command]/bin/cat Gemfile.lock
+2026-03-06T10:42:18.6906480Z GEM
+2026-03-06T10:42:18.6907000Z   remote: https://rubygems.org/
+2026-03-06T10:42:18.6907350Z   specs:
+2026-03-06T10:42:18.6907590Z     CFPropertyList (3.0.8)
+2026-03-06T10:42:18.6907950Z     abbrev (0.1.2)
+2026-03-06T10:42:18.6908230Z     addressable (2.8.9)
+2026-03-06T10:42:18.6908790Z       public_suffix (>= 2.0.2, < 8.0)
+2026-03-06T10:42:18.6909120Z     artifactory (3.0.17)
+2026-03-06T10:42:18.6909790Z     atomos (0.1.3)
+2026-03-06T10:42:18.6911640Z     aws-eventstream (1.4.0)
+2026-03-06T10:42:18.6911940Z     aws-partitions (1.1222.0)
+2026-03-06T10:42:18.6912240Z     aws-sdk-core (3.243.0)
+2026-03-06T10:42:18.6975550Z       aws-eventstream (~> 1, >= 1.3.0)
+2026-03-06T10:42:18.6976080Z       aws-partitions (~> 1, >= 1.992.0)
+2026-03-06T10:42:18.6976330Z       aws-sigv4 (~> 1.9)
+2026-03-06T10:42:18.6976900Z       base64
+2026-03-06T10:42:18.6977260Z       bigdecimal
+2026-03-06T10:42:18.6977770Z       jmespath (~> 1, >= 1.6.1)
+2026-03-06T10:42:18.6978160Z       logger
+2026-03-06T10:42:18.6978510Z     aws-sdk-kms (1.122.0)
+2026-03-06T10:42:18.6978880Z       aws-sdk-core (~> 3, >= 3.241.4)
+2026-03-06T10:42:18.6979270Z       aws-sigv4 (~> 1.5)
+2026-03-06T10:42:18.6979580Z     aws-sdk-s3 (1.215.0)
+2026-03-06T10:42:18.6979930Z       aws-sdk-core (~> 3, >= 3.243.0)
+2026-03-06T10:42:18.6991960Z       aws-sdk-kms (~> 1)
+2026-03-06T10:42:18.6992770Z       aws-sigv4 (~> 1.5)
+2026-03-06T10:42:18.6993490Z     aws-sigv4 (1.12.1)
+2026-03-06T10:42:18.6994160Z       aws-eventstream (~> 1, >= 1.0.2)
+2026-03-06T10:42:18.6994980Z     babosa (1.0.4)
+2026-03-06T10:42:18.6995300Z     base64 (0.2.0)
+2026-03-06T10:42:18.6995480Z     benchmark (0.5.0)
+2026-03-06T10:42:18.6995670Z     bigdecimal (4.0.1)
+2026-03-06T10:42:18.6995880Z     claide (1.1.0)
+2026-03-06T10:42:18.6996040Z     colored (1.2)
+2026-03-06T10:42:18.6996240Z     colored2 (3.1.2)
+2026-03-06T10:42:18.6996450Z     commander (4.6.0)
+2026-03-06T10:42:18.6996660Z       highline (~> 2.0.0)
+2026-03-06T10:42:18.6997820Z     csv (3.3.5)
+2026-03-06T10:42:18.6998100Z     declarative (0.0.20)
+2026-03-06T10:42:18.6998310Z     digest-crc (0.7.0)
+2026-03-06T10:42:18.6998500Z       rake (>= 12.0.0, < 14.0.0)
+2026-03-06T10:42:18.6999030Z     domain_name (0.6.20240107)
+2026-03-06T10:42:18.6999230Z     dotenv (2.8.1)
+2026-03-06T10:42:18.6999450Z     emoji_regex (3.2.3)
+2026-03-06T10:42:18.6999640Z     excon (0.112.0)
+2026-03-06T10:42:18.6999820Z     faraday (1.10.5)
+2026-03-06T10:42:18.7000030Z       faraday-em_http (~> 1.0)
+2026-03-06T10:42:18.7000270Z       faraday-em_synchrony (~> 1.0)
+2026-03-06T10:42:18.7000500Z       faraday-excon (~> 1.1)
+2026-03-06T10:42:18.7000740Z       faraday-httpclient (~> 1.0)
+2026-03-06T10:42:18.7000980Z       faraday-multipart (~> 1.0)
+2026-03-06T10:42:18.7001200Z       faraday-net_http (~> 1.0)
+2026-03-06T10:42:18.7001450Z       faraday-net_http_persistent (~> 1.0)
+2026-03-06T10:42:18.7001710Z       faraday-patron (~> 1.0)
+2026-03-06T10:42:18.7001930Z       faraday-rack (~> 1.0)
+2026-03-06T10:42:18.7002150Z       faraday-retry (~> 1.0)
+2026-03-06T10:42:18.7002360Z       ruby2_keywords (>= 0.0.4)
+2026-03-06T10:42:18.7002580Z     faraday-cookie_jar (0.0.8)
+2026-03-06T10:42:18.7002790Z       faraday (>= 0.8.0)
+2026-03-06T10:42:18.7002970Z       http-cookie (>= 1.0.0)
+2026-03-06T10:42:18.7003190Z     faraday-em_http (1.0.0)
+2026-03-06T10:42:18.7003400Z     faraday-em_synchrony (1.0.1)
+2026-03-06T10:42:18.7003640Z     faraday-excon (1.1.0)
+2026-03-06T10:42:18.7004040Z     faraday-httpclient (1.0.1)
+2026-03-06T10:42:18.7005340Z     faraday-multipart (1.2.0)
+2026-03-06T10:42:18.7006070Z       multipart-post (~> 2.0)
+2026-03-06T10:42:18.7006850Z     faraday-net_http (1.0.2)
+2026-03-06T10:42:18.7007470Z     faraday-net_http_persistent (1.2.0)
+2026-03-06T10:42:18.7008140Z     faraday-patron (1.0.0)
+2026-03-06T10:42:18.7008710Z     faraday-rack (1.0.0)
+2026-03-06T10:42:18.7009230Z     faraday-retry (1.0.3)
+2026-03-06T10:42:18.7009800Z     faraday_middleware (1.2.1)
+2026-03-06T10:42:18.7010390Z       faraday (~> 1.0)
+2026-03-06T10:42:18.7010940Z     fastimage (2.4.0)
+2026-03-06T10:42:18.7011390Z     fastlane (2.232.2)
+2026-03-06T10:42:18.7011890Z       CFPropertyList (>= 2.3, < 4.0.0)
+2026-03-06T10:42:18.7012660Z       abbrev (~> 0.1.2)
+2026-03-06T10:42:18.7013260Z       addressable (>= 2.8, < 3.0.0)
+2026-03-06T10:42:18.7014080Z       artifactory (~> 3.0)
+2026-03-06T10:42:18.7018430Z       aws-sdk-s3 (~> 1.197)
+2026-03-06T10:42:18.7019440Z       babosa (>= 1.0.3, < 2.0.0)
+2026-03-06T10:42:18.7019950Z       base64 (~> 0.2.0)
+2026-03-06T10:42:18.7020460Z       benchmark (>= 0.1.0)
+2026-03-06T10:42:18.7020990Z       bundler (>= 1.17.3, < 5.0.0)
+2026-03-06T10:42:18.7021510Z       colored (~> 1.2)
+2026-03-06T10:42:18.7021980Z       commander (~> 4.6)
+2026-03-06T10:42:18.7022440Z       csv (~> 3.3)
+2026-03-06T10:42:18.7022930Z       dotenv (>= 2.1.1, < 3.0.0)
+2026-03-06T10:42:18.7023450Z       emoji_regex (>= 0.1, < 4.0)
+2026-03-06T10:42:18.7024200Z       excon (>= 0.71.0, < 1.0.0)
+2026-03-06T10:42:18.7024790Z       faraday (~> 1.0)
+2026-03-06T10:42:18.7025300Z       faraday-cookie_jar (~> 0.0.6)
+2026-03-06T10:42:18.7026010Z       faraday_middleware (~> 1.0)
+2026-03-06T10:42:18.7026610Z       fastimage (>= 2.1.0, < 3.0.0)
+2026-03-06T10:42:18.7027260Z       fastlane-sirp (>= 1.0.0)
+2026-03-06T10:42:18.7027870Z       gh_inspector (>= 1.1.2, < 2.0.0)
+2026-03-06T10:42:18.7028650Z       google-apis-androidpublisher_v3 (~> 0.3)
+2026-03-06T10:42:18.7029380Z       google-apis-playcustomapp_v1 (~> 0.1)
+2026-03-06T10:42:18.7030100Z       google-cloud-env (>= 1.6.0, <= 2.1.1)
+2026-03-06T10:42:18.7030740Z       google-cloud-storage (~> 1.31)
+2026-03-06T10:42:18.7031330Z       highline (~> 2.0)
+2026-03-06T10:42:18.7032370Z       http-cookie (~> 1.0.5)
+2026-03-06T10:42:18.7032910Z       json (< 3.0.0)
+2026-03-06T10:42:18.7033400Z       jwt (>= 2.1.0, < 3)
+2026-03-06T10:42:18.7033900Z       logger (>= 1.6, < 2.0)
+2026-03-06T10:42:18.7034420Z       mini_magick (>= 4.9.4, < 5.0.0)
+2026-03-06T10:42:18.7035970Z       multipart-post (>= 2.0.0, < 3.0.0)
+2026-03-06T10:42:18.7036640Z       mutex_m (~> 0.3.0)
+2026-03-06T10:42:18.7037190Z       naturally (~> 2.2)
+2026-03-06T10:42:18.7037690Z       nkf (~> 0.2.0)
+2026-03-06T10:42:18.7038260Z       optparse (>= 0.1.1, < 1.0.0)
+2026-03-06T10:42:18.7039470Z       ostruct (>= 0.1.0)
+2026-03-06T10:42:18.7040000Z       plist (>= 3.1.0, < 4.0.0)
+2026-03-06T10:42:18.7040550Z       rubyzip (>= 2.0.0, < 3.0.0)
+2026-03-06T10:42:18.7041150Z       security (= 0.1.5)
+2026-03-06T10:42:18.7041660Z       simctl (~> 1.6.3)
+2026-03-06T10:42:18.7042190Z       terminal-notifier (>= 2.0.0, < 3.0.0)
+2026-03-06T10:42:18.7042860Z       terminal-table (~> 3)
+2026-03-06T10:42:18.7043400Z       tty-screen (>= 0.6.3, < 1.0.0)
+2026-03-06T10:42:18.7044010Z       tty-spinner (>= 0.8.0, < 1.0.0)
+2026-03-06T10:42:18.7044610Z       word_wrap (~> 1.0.0)
+2026-03-06T10:42:18.7045150Z       xcodeproj (>= 1.13.0, < 2.0.0)
+2026-03-06T10:42:18.7045720Z       xcpretty (~> 0.4.1)
+2026-03-06T10:42:18.7046300Z       xcpretty-travis-formatter (>= 0.0.3, < 2.0.0)
+2026-03-06T10:42:18.7047200Z     fastlane-sirp (1.0.0)
+2026-03-06T10:42:18.7047780Z       sysrandom (~> 1.0)
+2026-03-06T10:42:18.7048270Z     gh_inspector (1.1.3)
+2026-03-06T10:42:18.7048840Z     google-apis-androidpublisher_v3 (0.96.0)
+2026-03-06T10:42:18.7049850Z       google-apis-core (>= 0.15.0, < 2.a)
+2026-03-06T10:42:18.7050140Z     google-apis-core (0.18.0)
+2026-03-06T10:42:18.7050390Z       addressable (~> 2.5, >= 2.5.1)
+2026-03-06T10:42:18.7050630Z       googleauth (~> 1.9)
+2026-03-06T10:42:18.7050840Z       httpclient (>= 2.8.3, < 3.a)
+2026-03-06T10:42:18.7051070Z       mini_mime (~> 1.0)
+2026-03-06T10:42:18.7051270Z       mutex_m
+2026-03-06T10:42:18.7051440Z       representable (~> 3.0)
+2026-03-06T10:42:18.7051650Z       retriable (>= 2.0, < 4.a)
+2026-03-06T10:42:18.7051870Z     google-apis-iamcredentials_v1 (0.26.0)
+2026-03-06T10:42:18.7052140Z       google-apis-core (>= 0.15.0, < 2.a)
+2026-03-06T10:42:18.7052390Z     google-apis-playcustomapp_v1 (0.17.0)
+2026-03-06T10:42:18.7052670Z       google-apis-core (>= 0.15.0, < 2.a)
+2026-03-06T10:42:18.7052920Z     google-apis-storage_v1 (0.61.0)
+2026-03-06T10:42:18.7053170Z       google-apis-core (>= 0.15.0, < 2.a)
+2026-03-06T10:42:18.7053390Z     google-cloud-core (1.8.0)
+2026-03-06T10:42:18.7053640Z       google-cloud-env (>= 1.0, < 3.a)
+2026-03-06T10:42:18.7053890Z       google-cloud-errors (~> 1.0)
+2026-03-06T10:42:18.7054150Z     google-cloud-env (2.1.1)
+2026-03-06T10:42:18.7054390Z       faraday (>= 1.0, < 3.a)
+2026-03-06T10:42:18.7054620Z     google-cloud-errors (1.5.0)
+2026-03-06T10:42:18.7054870Z     google-cloud-storage (1.58.0)
+2026-03-06T10:42:18.7055090Z       addressable (~> 2.8)
+2026-03-06T10:42:18.7055310Z       digest-crc (~> 0.4)
+2026-03-06T10:42:18.7055520Z       google-apis-core (>= 0.18, < 2)
+2026-03-06T10:42:18.7055780Z       google-apis-iamcredentials_v1 (~> 0.18)
+2026-03-06T10:42:18.7056040Z       google-apis-storage_v1 (>= 0.42)
+2026-03-06T10:42:18.7056280Z       google-cloud-core (~> 1.6)
+2026-03-06T10:42:18.7056490Z       googleauth (~> 1.9)
+2026-03-06T10:42:18.7056670Z       mini_mime (~> 1.0)
+2026-03-06T10:42:18.7056850Z     googleauth (1.11.2)
+2026-03-06T10:42:18.7057030Z       faraday (>= 1.0, < 3.a)
+2026-03-06T10:42:18.7057230Z       google-cloud-env (~> 2.1)
+2026-03-06T10:42:18.7057460Z       jwt (>= 1.4, < 3.0)
+2026-03-06T10:42:18.7057650Z       multi_json (~> 1.11)
+2026-03-06T10:42:18.7057840Z       os (>= 0.9, < 2.0)
+2026-03-06T10:42:18.7058020Z       signet (>= 0.16, < 2.a)
+2026-03-06T10:42:18.7058200Z     highline (2.0.3)
+2026-03-06T10:42:18.7058430Z     http-cookie (1.0.8)
+2026-03-06T10:42:18.7058720Z       domain_name (~> 0.5)
+2026-03-06T10:42:18.7058920Z     httpclient (2.9.0)
+2026-03-06T10:42:18.7059110Z       mutex_m
+2026-03-06T10:42:18.7059270Z     jmespath (1.6.2)
+2026-03-06T10:42:18.7059430Z     json (2.19.0)
+2026-03-06T10:42:18.7059580Z     jwt (2.10.2)
+2026-03-06T10:42:18.7059740Z       base64
+2026-03-06T10:42:18.7059880Z     logger (1.7.0)
+2026-03-06T10:42:18.7060500Z     mini_magick (4.13.2)
+2026-03-06T10:42:18.7060700Z     mini_mime (1.1.5)
+2026-03-06T10:42:18.7060950Z     multi_json (1.19.1)
+2026-03-06T10:42:18.7061130Z     multipart-post (2.4.1)
+2026-03-06T10:42:18.7061320Z     mutex_m (0.3.0)
+2026-03-06T10:42:18.7061680Z     nanaimo (0.4.0)
+2026-03-06T10:42:18.7061840Z     naturally (2.3.0)
+2026-03-06T10:42:18.7062010Z     nkf (0.2.0)
+2026-03-06T10:42:18.7062160Z     optparse (0.8.1)
+2026-03-06T10:42:18.7062330Z     os (1.1.4)
+2026-03-06T10:42:18.7062470Z     ostruct (0.6.3)
+2026-03-06T10:42:18.7062630Z     plist (3.7.2)
+2026-03-06T10:42:18.7062790Z     public_suffix (7.0.5)
+2026-03-06T10:42:18.7062970Z     rake (13.3.1)
+2026-03-06T10:42:18.7063130Z     representable (3.2.0)
+2026-03-06T10:42:18.7063320Z       declarative (< 0.1.0)
+2026-03-06T10:42:18.7063590Z       trailblazer-option (>= 0.1.1, < 0.2.0)
+2026-03-06T10:42:18.7063810Z       uber (< 0.2.0)
+2026-03-06T10:42:18.7063970Z     retriable (3.2.1)
+2026-03-06T10:42:18.7064130Z     rexml (3.4.4)
+2026-03-06T10:42:18.7064290Z     rouge (3.28.0)
+2026-03-06T10:42:18.7064450Z     ruby2_keywords (0.0.5)
+2026-03-06T10:42:18.7064640Z     rubyzip (2.4.1)
+2026-03-06T10:42:18.7064800Z     security (0.1.5)
+2026-03-06T10:42:18.7064970Z     signet (0.21.0)
+2026-03-06T10:42:18.7065140Z       addressable (~> 2.8)
+2026-03-06T10:42:18.7065320Z       faraday (>= 0.17.5, < 3.a)
+2026-03-06T10:42:18.7066210Z       jwt (>= 1.5, < 4.0)
+2026-03-06T10:42:18.7066950Z       multi_json (~> 1.10)
+2026-03-06T10:42:18.7067530Z     simctl (1.6.10)
+2026-03-06T10:42:18.7067990Z       CFPropertyList
+2026-03-06T10:42:18.7068430Z       naturally
+2026-03-06T10:42:18.7068890Z     sysrandom (1.0.5)
+2026-03-06T10:42:18.7069380Z     terminal-notifier (2.0.0)
+2026-03-06T10:42:18.7069900Z     terminal-table (3.0.2)
+2026-03-06T10:42:18.7070440Z       unicode-display_width (>= 1.1.1, < 3)
+2026-03-06T10:42:18.7071040Z     trailblazer-option (0.1.2)
+2026-03-06T10:42:18.7071560Z     tty-cursor (0.7.1)
+2026-03-06T10:42:18.7072020Z     tty-screen (0.8.2)
+2026-03-06T10:42:18.7072510Z     tty-spinner (0.9.3)
+2026-03-06T10:42:18.7073050Z       tty-cursor (~> 0.7)
+2026-03-06T10:42:18.7073610Z     uber (0.1.0)
+2026-03-06T10:42:18.7074520Z     unicode-display_width (2.6.0)
+2026-03-06T10:42:18.7074760Z     word_wrap (1.0.0)
+2026-03-06T10:42:18.7074950Z     xcodeproj (1.27.0)
+2026-03-06T10:42:18.7075150Z       CFPropertyList (>= 2.3.3, < 4.0)
+2026-03-06T10:42:18.7075360Z       atomos (~> 0.1.3)
+2026-03-06T10:42:18.7075540Z       claide (>= 1.0.2, < 2.0)
+2026-03-06T10:42:18.7075720Z       colored2 (~> 3.1)
+2026-03-06T10:42:18.7075910Z       nanaimo (~> 0.4.0)
+2026-03-06T10:42:18.7076100Z       rexml (>= 3.3.6, < 4.0)
+2026-03-06T10:42:18.7076290Z     xcpretty (0.4.1)
+2026-03-06T10:42:18.7076450Z       rouge (~> 3.28.0)
+2026-03-06T10:42:18.7077180Z     xcpretty-travis-formatter (1.0.1)
+2026-03-06T10:42:18.7077400Z       xcpretty (~> 0.2, >= 0.0.7)
+2026-03-06T10:42:18.7077540Z 
+2026-03-06T10:42:18.7077600Z PLATFORMS
+2026-03-06T10:42:18.7077750Z   arm64-darwin-23
+2026-03-06T10:42:18.7077850Z 
+2026-03-06T10:42:18.7086430Z DEPENDENCIES
+2026-03-06T10:42:18.7086620Z   fastlane (~> 2.225)
+2026-03-06T10:42:18.7086800Z   xcpretty (~> 0.3)
+2026-03-06T10:42:18.7086910Z 
+2026-03-06T10:42:18.7086970Z BUNDLED WITH
+2026-03-06T10:42:18.7087120Z    2.4.19
+2026-03-06T10:42:18.7087570Z ##[endgroup]
+2026-03-06T10:42:18.7088270Z Cache key: setup-ruby-bundler-cache-v6-macos-15-arm64-ruby-3.2.10-wd-/Users/runner/work/vox-ios/vox-ios-with--without--only--Gemfile.lock-ee6c2a379f2737682108e0e3813dedc341013b2c61bdcc9dcbe559274924ffad
+2026-03-06T10:42:19.0022730Z Cache hit for restore-key: setup-ruby-bundler-cache-v6-macos-15-arm64-ruby-3.2.10-wd-/Users/runner/work/vox-ios/vox-ios-with--without--only--Gemfile.lock-07cb662a92c3d38b4bd91c91ccf48363216b6db6bc994ddb35e3b20cf7ee8ffb
+2026-03-06T10:42:20.3233660Z Received 0 of 14706280 (0.0%), 0.0 MBs/sec
+2026-03-06T10:42:20.7115150Z Received 14706280 of 14706280 (100.0%), 10.1 MBs/sec
+2026-03-06T10:42:20.7133050Z Cache Size: ~14 MB (14706280 B)
+2026-03-06T10:42:20.7188340Z [command]/opt/homebrew/bin/gtar -xf /Users/runner/work/_temp/1ee378af-8a4d-4d9d-9311-138af7aed1d4/cache.tzst -P -C /Users/runner/work/vox-ios/vox-ios --delay-directory-restore --use-compress-program unzstd
+2026-03-06T10:42:21.5882000Z Cache restored successfully
+2026-03-06T10:42:21.5985040Z Found cache for key: setup-ruby-bundler-cache-v6-macos-15-arm64-ruby-3.2.10-wd-/Users/runner/work/vox-ios/vox-ios-with--without--only--Gemfile.lock-07cb662a92c3d38b4bd91c91ccf48363216b6db6bc994ddb35e3b20cf7ee8ffb
+2026-03-06T10:42:21.6087030Z [command]/Users/runner/hostedtoolcache/Ruby/3.2.10/arm64/bin/bundle install --jobs 3
+2026-03-06T10:42:25.5472360Z Fetching gem metadata from https://rubygems.org/........
+2026-03-06T10:42:25.5858730Z Fetching aws-partitions 1.1222.0
+2026-03-06T10:42:25.5961510Z Fetching json 2.19.0
+2026-03-06T10:42:25.6828270Z Installing aws-partitions 1.1222.0
+2026-03-06T10:42:25.6836800Z Installing json 2.19.0 with native extensions
+2026-03-06T10:42:25.7049070Z Fetching aws-sdk-core 3.243.0
+2026-03-06T10:42:25.7801790Z Installing aws-sdk-core 3.243.0
+2026-03-06T10:42:25.9928430Z Fetching aws-sdk-s3 1.215.0
+2026-03-06T10:42:26.1079220Z Installing aws-sdk-s3 1.215.0
+2026-03-06T10:42:30.9451210Z Bundle complete! 2 Gemfile dependencies, 97 gems now installed.
+2026-03-06T10:42:30.9452060Z Bundled gems are installed into `./vendor/bundle`
+2026-03-06T10:42:31.0476240Z [command]/Users/runner/hostedtoolcache/Ruby/3.2.10/arm64/bin/bundle clean
+2026-03-06T10:42:31.2082430Z Removing aws-partitions (1.1221.0)
+2026-03-06T10:42:31.2104810Z Removing aws-sdk-core (3.242.0)
+2026-03-06T10:42:31.2368750Z Removing aws-sdk-s3 (1.214.0)
+2026-03-06T10:42:31.2474050Z Removing json (2.18.1)
+2026-03-06T10:42:31.2530420Z Saving cache
+2026-03-06T10:42:31.2666850Z [command]/opt/homebrew/bin/gtar --posix -cf cache.tzst --exclude cache.tzst -P -C /Users/runner/work/vox-ios/vox-ios --files-from manifest.txt --delay-directory-restore --use-compress-program zstdmt
+2026-03-06T10:42:33.3704870Z Sent 14734109 of 14734109 (100.0%), 14.0 MBs/sec
+2026-03-06T10:42:33.6952150Z Took  20.39 seconds
+2026-03-06T10:42:33.7052570Z ##[group]Run test -n "$MATCH_GIT_URL" || (echo "❌ Missing MATCH_GIT_URL" && exit 1)
+2026-03-06T10:42:33.7053510Z [36;1mtest -n "$MATCH_GIT_URL" || (echo "❌ Missing MATCH_GIT_URL" && exit 1)[0m
+2026-03-06T10:42:33.7054080Z [36;1mtest -n "$MATCH_PASSWORD" || (echo "❌ Missing MATCH_PASSWORD" && exit 1)[0m
+2026-03-06T10:42:33.7054740Z [36;1mtest -n "$MATCH_KEYCHAIN_PASSWORD" || (echo "❌ Missing MATCH_KEYCHAIN_PASSWORD" && exit 1)[0m
+2026-03-06T10:42:33.7055330Z [36;1mecho "✅ match secrets are present (reuse mode)"[0m
+2026-03-06T10:42:33.7103460Z shell: /bin/bash -e {0}
+2026-03-06T10:42:33.7103840Z env:
+2026-03-06T10:42:33.7105400Z   PATH: /Users/runner/.local/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/Users/runner/.cargo/bin:/usr/local/opt/curl/bin:/usr/local/bin:/usr/local/sbin:/Users/runner/bin:/Users/runner/.yarn/bin:/Users/runner/Library/Android/sdk/tools:/Users/runner/Library/Android/sdk/platform-tools:/Library/Frameworks/Python.framework/Versions/Current/bin:/Library/Frameworks/Mono.framework/Versions/Current/Commands:/usr/bin:/bin:/usr/sbin:/sbin:/Users/runner/.dotnet/tools
+2026-03-06T10:42:33.7107600Z   MATCH_GIT_URL: ***
+2026-03-06T10:42:33.7108020Z   MATCH_PASSWORD: ***
+2026-03-06T10:42:33.7108450Z   MATCH_KEYCHAIN_PASSWORD: ***
+2026-03-06T10:42:33.7108760Z ##[endgroup]
+2026-03-06T10:42:33.7551580Z ✅ match secrets are present (reuse mode)
+2026-03-06T10:42:33.7711650Z ##[group]Run bundle exec fastlane beta
+2026-03-06T10:42:33.7711980Z [36;1mbundle exec fastlane beta[0m
+2026-03-06T10:42:33.7769140Z shell: /bin/bash -e {0}
+2026-03-06T10:42:33.7769390Z env:
+2026-03-06T10:42:33.7770830Z   PATH: /Users/runner/.local/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/Users/runner/.cargo/bin:/usr/local/opt/curl/bin:/usr/local/bin:/usr/local/sbin:/Users/runner/bin:/Users/runner/.yarn/bin:/Users/runner/Library/Android/sdk/tools:/Users/runner/Library/Android/sdk/platform-tools:/Library/Frameworks/Python.framework/Versions/Current/bin:/Library/Frameworks/Mono.framework/Versions/Current/Commands:/usr/bin:/bin:/usr/sbin:/sbin:/Users/runner/.dotnet/tools
+2026-03-06T10:42:33.7772420Z   ASC_KEY_ID: ***
+2026-03-06T10:42:33.7772750Z   ASC_ISSUER_ID: ***
+2026-03-06T10:42:33.7774110Z   ASC_PRIVATE_KEY: ***
+2026-03-06T10:42:33.7777680Z   MATCH_GIT_URL: ***
+2026-03-06T10:42:33.7778120Z   MATCH_PASSWORD: ***
+2026-03-06T10:42:33.7778470Z   MATCH_KEYCHAIN_PASSWORD: ***
+2026-03-06T10:42:33.7778800Z ##[endgroup]
+2026-03-06T10:42:35.5767400Z [10:42:35]: Sending anonymous analytics information
+2026-03-06T10:42:35.5875110Z [10:42:35]: Learn more at https://docs.fastlane.tools/#metrics
+2026-03-06T10:42:35.5976360Z [10:42:35]: No personal or sensitive data is sent.
+2026-03-06T10:42:35.6076800Z [10:42:35]: You can disable this by adding `opt_out_usage` at the top of your Fastfile
+2026-03-06T10:42:35.6178480Z [10:42:35]: [32m------------------------------[0m
+2026-03-06T10:42:35.6278960Z [10:42:35]: [32m--- Step: default_platform ---[0m
+2026-03-06T10:42:35.6379790Z [10:42:35]: [32m------------------------------[0m
+2026-03-06T10:42:35.6488730Z [10:42:35]: [32mDriving the lane 'ios beta' 🚀[0m
+2026-03-06T10:42:35.6587880Z [10:42:35]: [32m---------------------------------------[0m
+2026-03-06T10:42:35.6692540Z [10:42:35]: [32m--- Step: app_store_connect_api_key ---[0m
+2026-03-06T10:42:35.6793140Z [10:42:35]: [32m---------------------------------------[0m
+2026-03-06T10:42:35.7946750Z [10:42:35]: [32m-----------------------------[0m
+2026-03-06T10:42:35.8054210Z [10:42:35]: [32m--- Step: create_keychain ---[0m
+2026-03-06T10:42:35.8156750Z [10:42:35]: [32m-----------------------------[0m
+2026-03-06T10:42:35.9780070Z [10:42:35]: [36m$ security list-keychains -d user[0m
+2026-03-06T10:42:35.9982170Z [10:42:35]: ▸ [35m"/Users/runner/Library/Keychains/vox-ci-signing-db"[0m
+2026-03-06T10:42:36.0099190Z [10:42:35]: [33mFound keychain '/Users/runner/Library/Keychains/vox-ci-signing-db' in list-keychains, adding to search list skipped[0m
+2026-03-06T10:42:36.1045450Z [10:42:36]: [32m-------------------[0m
+2026-03-06T10:42:36.1146980Z [10:42:36]: [32m--- Step: match ---[0m
+2026-03-06T10:42:36.1248650Z [10:42:36]: [32m-------------------[0m
+2026-03-06T10:42:36.1350650Z 
+2026-03-06T10:42:36.1453740Z +-------------------------------------------------------------------------------------------------------------------------------------+
+2026-03-06T10:42:36.1554670Z |                                                      [32mSummary for match 2.232.2[0m                                                      |
+2026-03-06T10:42:36.1656050Z +----------------------------------------+--------------------------------------------------------------------------------------------+
+2026-03-06T10:42:36.1758590Z | api_key                                | ********                                                                                   |
+2026-03-06T10:42:36.1861310Z | type                                   | appstore                                                                                   |
+2026-03-06T10:42:36.1963260Z | readonly                               | false                                                                                      |
+2026-03-06T10:42:36.2063710Z | storage_mode                           | git                                                                                        |
+2026-03-06T10:42:36.2170200Z | git_url                                | *** |
+2026-03-06T10:42:36.2269050Z | app_identifier                         | ["com.jasonhorga.vox", "com.jasonhorga.vox.keyboard"]                                      |
+2026-03-06T10:42:36.2369640Z | keychain_name                          | vox-ci-signing                                                                             |
+2026-03-06T10:42:36.2473130Z | keychain_password                      | ********                                                                                   |
+2026-03-06T10:42:36.2573840Z | force                                  | true                                                                                       |
+2026-03-06T10:42:36.2675300Z | force_for_new_devices                  | false                                                                                      |
+2026-03-06T10:42:36.2775490Z | generate_apple_certs                   | true                                                                                       |
+2026-03-06T10:42:36.2875980Z | skip_provisioning_profiles             | false                                                                                      |
+2026-03-06T10:42:36.2978320Z | git_branch                             | master                                                                                     |
+2026-03-06T10:42:36.3079140Z | shallow_clone                          | false                                                                                      |
+2026-03-06T10:42:36.3275050Z | clone_branch_directly                  | false                                                                                      |
+2026-03-06T10:42:36.3399750Z | skip_google_cloud_account_confirmation | false                                                                                      |
+2026-03-06T10:42:36.3537190Z | s3_skip_encryption                     | false                                                                                      |
+2026-03-06T10:42:36.3676060Z | gitlab_host                            | https://gitlab.com                                                                         |
+2026-03-06T10:42:36.3802880Z | include_mac_in_profiles                | false                                                                                      |
+2026-03-06T10:42:36.3904430Z | include_all_certificates               | false                                                                                      |
+2026-03-06T10:42:36.4008740Z | force_for_new_certificates             | false                                                                                      |
+2026-03-06T10:42:36.4110420Z | skip_confirmation                      | false                                                                                      |
+2026-03-06T10:42:36.4362790Z | safe_remove_certs                      | false                                                                                      |
+2026-03-06T10:42:36.4464250Z | skip_docs                              | false                                                                                      |
+2026-03-06T10:42:36.4565630Z | platform                               | ios                                                                                        |
+2026-03-06T10:42:36.4669220Z | derive_catalyst_app_identifier         | false                                                                                      |
+2026-03-06T10:42:36.4767500Z | fail_on_name_taken                     | false                                                                                      |
+2026-03-06T10:42:36.4870770Z | skip_certificate_matching              | false                                                                                      |
+2026-03-06T10:42:36.4973710Z | skip_set_partition_list                | false                                                                                      |
+2026-03-06T10:42:36.5074890Z | force_legacy_encryption                | false                                                                                      |
+2026-03-06T10:42:36.5176080Z | verbose                                | false                                                                                      |
+2026-03-06T10:42:36.5278050Z +----------------------------------------+--------------------------------------------------------------------------------------------+
+2026-03-06T10:42:36.5378800Z 
+2026-03-06T10:42:36.5480550Z [10:42:36]: Cloning remote git repo...
+2026-03-06T10:42:36.5582600Z [10:42:36]: If cloning the repo takes too long, you can use the `clone_branch_directly` option in match.
+2026-03-06T10:42:37.3053040Z [10:42:37]: Checking out branch master...
+2026-03-06T10:42:37.3456550Z [10:42:37]: [32m🔓  Successfully decrypted certificates repo[0m
+2026-03-06T10:42:37.3556670Z [10:42:37]: Verifying that the certificate and profile are still valid on the Dev Portal...
+2026-03-06T10:42:37.3696960Z [10:42:37]: Creating authorization token for App Store Connect API
+2026-03-06T10:42:37.5834140Z [10:42:37]: Installing certificate...
+2026-03-06T10:42:39.0015990Z [10:42:39]: [31mThere are no local code signing identities found.
+2026-03-06T10:42:39.0118140Z You can run `security find-identity -v -p codesigning /Users/runner/Library/Keychains/vox-ci-signing-db` to get this output.
+2026-03-06T10:42:39.0220430Z This Stack Overflow thread has more information: https://stackoverflow.com/q/35390072/774.
+2026-03-06T10:42:39.0322210Z (Check in Keychain Access for an expired WWDR certificate: https://stackoverflow.com/a/35409835/774 has more info.)[0m
+2026-03-06T10:42:39.0912460Z [10:42:39]: Setting key partition list... (this can take a minute if there are a lot of keys installed)
+2026-03-06T10:42:39.1874090Z [10:42:39]: [31msecurity: SecItemCopyMatching: The specified item could not be found in the keychain.[0m
+2026-03-06T10:42:39.5919740Z [10:42:39]: Setting key partition list... (this can take a minute if there are a lot of keys installed)
+2026-03-06T10:42:39.7547920Z 
+2026-03-06T10:42:39.7654010Z +----------------------------------------------------------------+
+2026-03-06T10:42:39.7760340Z |                     [32mInstalled Certificate[0m                      |
+2026-03-06T10:42:39.7861860Z +-------------------+--------------------------------------------+
+2026-03-06T10:42:39.7962220Z | User ID           | 6HB84897DJ                                 |
+2026-03-06T10:42:39.8063470Z | Common Name       | Apple Distribution: jun zhang (6HB84897DJ) |
+2026-03-06T10:42:39.8163900Z | Organisation Unit | 6HB84897DJ                                 |
+2026-03-06T10:42:39.8238670Z | Organisation      | jun zhang                                  |
+2026-03-06T10:42:39.8340070Z | Country           | US                                         |
+2026-03-06T10:42:39.8440950Z | Start Datetime    | 2026-03-05 09:58:09 UTC                    |
+2026-03-06T10:42:39.8541740Z | End Datetime      | 2027-03-05 09:58:08 UTC                    |
+2026-03-06T10:42:39.8643260Z +-------------------+--------------------------------------------+
+2026-03-06T10:42:39.8743840Z 
+2026-03-06T10:42:40.4835220Z [10:42:40]: [34m[1mUsing deprecated option: '--template_name' (Removed since May 2025 on App Store Connect API OpenAPI v3.8.0 - Learn more: https://docs.fastlane.tools/actions/match/#managed-capabilities)[0m
+2026-03-06T10:42:40.4933890Z 
+2026-03-06T10:42:40.5035370Z +-------------------------------------------------------------------------+
+2026-03-06T10:42:40.5137260Z |                        [32mSummary for sigh 2.232.2[0m                         |
+2026-03-06T10:42:40.5239050Z +-------------------------------------+-----------------------------------+
+2026-03-06T10:42:40.5341150Z | app_identifier                      | com.jasonhorga.vox                |
+2026-03-06T10:42:40.5410320Z | force                               | true                              |
+2026-03-06T10:42:40.5481210Z | cert_id                             | AT2SFB8BD3                        |
+2026-03-06T10:42:40.5521480Z | provisioning_name                   | match AppStore com.jasonhorga.vox |
+2026-03-06T10:42:40.5555470Z | ignore_profiles_with_different_name | true                              |
+2026-03-06T10:42:40.5556730Z | api_key                             | ********                          |
+2026-03-06T10:42:40.5557380Z | fail_on_name_taken                  | false                             |
+2026-03-06T10:42:40.5558020Z | include_all_certificates            | false                             |
+2026-03-06T10:42:40.5558600Z | include_mac_in_profiles             | false                             |
+2026-03-06T10:42:40.5559210Z | platform                            | ios                               |
+2026-03-06T10:42:40.5559830Z | adhoc                               | false                             |
+2026-03-06T10:42:40.5560430Z | developer_id                        | false                             |
+2026-03-06T10:42:40.5563960Z | development                         | false                             |
+2026-03-06T10:42:40.5564930Z | skip_install                        | false                             |
+2026-03-06T10:42:40.5565690Z | skip_fetch_profiles                 | false                             |
+2026-03-06T10:42:40.5566330Z | skip_certificate_verification       | false                             |
+2026-03-06T10:42:40.5567210Z | readonly                            | false                             |
+2026-03-06T10:42:40.5567930Z +-------------------------------------+-----------------------------------+
+2026-03-06T10:42:40.5568340Z 
+2026-03-06T10:42:40.5568650Z [10:42:40]: Creating authorization token for App Store Connect API
+2026-03-06T10:42:40.5569890Z [10:42:40]: Fetching profiles...
+2026-03-06T10:42:40.5570400Z [10:42:40]: Verifying certificates...
+2026-03-06T10:42:40.7610160Z [10:42:40]: [32mFound 1 matching profile(s)[0m
+2026-03-06T10:42:40.7674900Z [10:42:40]: [33mRecreating the profile[0m
+2026-03-06T10:42:41.0987210Z [10:42:41]: [33mCreating new provisioning profile for 'com.jasonhorga.vox' with name 'match AppStore com.jasonhorga.vox' for 'ios' platform[0m
+2026-03-06T10:42:41.9771210Z [10:42:41]: [33mDownloading provisioning profile...[0m
+2026-03-06T10:42:41.9778860Z [10:42:41]: [32mSuccessfully downloaded provisioning profile...[0m
+2026-03-06T10:42:42.0672080Z [10:42:42]: Installing provisioning profile...
+2026-03-06T10:42:42.1561480Z [32m/var/folders/t5/f77_gwnj6p95qxy9py3fckx00000gn/T/d20260306-26388-ndz2o0/profiles/appstore/AppStore_com.jasonhorga.vox.mobileprovision[0m
+2026-03-06T10:42:42.4894350Z [10:42:42]: Installing provisioning profile...
+2026-03-06T10:42:42.6021410Z [10:42:42]: [34m[1mUsing deprecated option: '--template_name' (Removed since May 2025 on App Store Connect API OpenAPI v3.8.0 - Learn more: https://docs.fastlane.tools/actions/match/#managed-capabilities)[0m
+2026-03-06T10:42:42.6122560Z 
+2026-03-06T10:42:42.6223710Z +----------------------------------------------------------------------------------+
+2026-03-06T10:42:42.6256670Z |                             [32mSummary for sigh 2.232.2[0m                             |
+2026-03-06T10:42:42.6257380Z +-------------------------------------+--------------------------------------------+
+2026-03-06T10:42:42.6258290Z | app_identifier                      | com.jasonhorga.vox.keyboard                |
+2026-03-06T10:42:42.6258880Z | force                               | true                                       |
+2026-03-06T10:42:42.6259560Z | cert_id                             | AT2SFB8BD3                                 |
+2026-03-06T10:42:42.6361560Z | provisioning_name                   | match AppStore com.jasonhorga.vox.keyboard |
+2026-03-06T10:42:42.6464300Z | ignore_profiles_with_different_name | true                                       |
+2026-03-06T10:42:42.6526900Z | api_key                             | ********                                   |
+2026-03-06T10:42:42.6628300Z | fail_on_name_taken                  | false                                      |
+2026-03-06T10:42:42.6636230Z | include_all_certificates            | false                                      |
+2026-03-06T10:42:42.6687430Z | include_mac_in_profiles             | false                                      |
+2026-03-06T10:42:42.6731570Z | platform                            | ios                                        |
+2026-03-06T10:42:42.6750270Z | adhoc                               | false                                      |
+2026-03-06T10:42:42.6763740Z | developer_id                        | false                                      |
+2026-03-06T10:42:42.6782000Z | development                         | false                                      |
+2026-03-06T10:42:42.6805370Z | skip_install                        | false                                      |
+2026-03-06T10:42:42.6841020Z | skip_fetch_profiles                 | false                                      |
+2026-03-06T10:42:42.6856660Z | skip_certificate_verification       | false                                      |
+2026-03-06T10:42:42.6860910Z | readonly                            | false                                      |
+2026-03-06T10:42:42.6862190Z +-------------------------------------+--------------------------------------------+
+2026-03-06T10:42:42.6863930Z 
+2026-03-06T10:42:42.6865390Z [10:42:42]: Creating authorization token for App Store Connect API
+2026-03-06T10:42:42.6867970Z [10:42:42]: Fetching profiles...
+2026-03-06T10:42:42.6870520Z [10:42:42]: Verifying certificates...
+2026-03-06T10:42:42.9295910Z [10:42:42]: [32mFound 1 matching profile(s)[0m
+2026-03-06T10:42:42.9344710Z [10:42:42]: [33mRecreating the profile[0m
+2026-03-06T10:42:43.2357790Z [10:42:43]: [33mCreating new provisioning profile for 'com.jasonhorga.vox.keyboard' with name 'match AppStore com.jasonhorga.vox.keyboard' for 'ios' platform[0m
+2026-03-06T10:42:43.7417330Z [10:42:43]: [33mDownloading provisioning profile...[0m
+2026-03-06T10:42:43.7421650Z [10:42:43]: [32mSuccessfully downloaded provisioning profile...[0m
+2026-03-06T10:42:43.8180000Z [10:42:43]: Installing provisioning profile...
+2026-03-06T10:42:43.8827540Z [32m/var/folders/t5/f77_gwnj6p95qxy9py3fckx00000gn/T/d20260306-26388-ndz2o0/profiles/appstore/AppStore_com.jasonhorga.vox.keyboard.mobileprovision[0m
+2026-03-06T10:42:43.9116100Z [10:42:43]: Installing provisioning profile...
+2026-03-06T10:42:43.9777850Z [10:42:43]: [32m🔒  Successfully encrypted certificates repo[0m
+2026-03-06T10:42:43.9780170Z [10:42:43]: Pushing changes to remote git repo...
+2026-03-06T10:42:45.3974990Z [10:42:45]: Finished uploading files to Git Repo [***]
+2026-03-06T10:42:45.4047570Z 
+2026-03-06T10:42:45.4059520Z +-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+2026-03-06T10:42:45.4061680Z |                                                                                   [32mInstalled Provisioning Profile[0m                                                                                    |
+2026-03-06T10:42:45.4062530Z +---------------------+---------------------------------------------------+---------------------------------------------------------------------------------------------------------------------------+
+2026-03-06T10:42:45.4063410Z | Parameter           | Environment Variable                              | Value                                                                                                                     |
+2026-03-06T10:42:45.4064180Z +---------------------+---------------------------------------------------+---------------------------------------------------------------------------------------------------------------------------+
+2026-03-06T10:42:45.4064960Z | App Identifier      |                                                   | com.jasonhorga.vox                                                                                                        |
+2026-03-06T10:42:45.4066230Z | Type                |                                                   | appstore                                                                                                                  |
+2026-03-06T10:42:45.4066880Z | Platform            |                                                   | ios                                                                                                                       |
+2026-03-06T10:42:45.4067630Z | Profile UUID        | sigh_com.jasonhorga.vox_appstore                  | da179d11-1c1d-46b6-bd6e-fb98c7c04ddb                                                                                      |
+2026-03-06T10:42:45.4068540Z | Profile Name        | sigh_com.jasonhorga.vox_appstore_profile-name     | match AppStore com.jasonhorga.vox                                                                                         |
+2026-03-06T10:42:45.4069580Z | Profile Path        | sigh_com.jasonhorga.vox_appstore_profile-path     | /Users/runner/Library/Developer/Xcode/UserData/Provisioning Profiles/da179d11-1c1d-46b6-bd6e-fb98c7c04ddb.mobileprovision |
+2026-03-06T10:42:45.4070900Z | Development Team ID | sigh_com.jasonhorga.vox_appstore_team-id          | 6HB84897DJ                                                                                                                |
+2026-03-06T10:42:45.4071830Z | Certificate Name    | sigh_com.jasonhorga.vox_appstore_certificate-name | Apple Distribution: jun zhang (6HB84897DJ)                                                                                |
+2026-03-06T10:42:45.4072790Z +---------------------+---------------------------------------------------+---------------------------------------------------------------------------------------------------------------------------+
+2026-03-06T10:42:45.4073310Z 
+2026-03-06T10:42:45.4073310Z 
+2026-03-06T10:42:45.4073760Z +--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+2026-03-06T10:42:45.4074790Z |                                                                                        [32mInstalled Provisioning Profile[0m                                                                                        |
+2026-03-06T10:42:45.4075640Z +---------------------+------------------------------------------------------------+---------------------------------------------------------------------------------------------------------------------------+
+2026-03-06T10:42:45.4076470Z | Parameter           | Environment Variable                                       | Value                                                                                                                     |
+2026-03-06T10:42:45.4077270Z +---------------------+------------------------------------------------------------+---------------------------------------------------------------------------------------------------------------------------+
+2026-03-06T10:42:45.4078180Z | App Identifier      |                                                            | com.jasonhorga.vox.keyboard                                                                                               |
+2026-03-06T10:42:45.4078940Z | Type                |                                                            | appstore                                                                                                                  |
+2026-03-06T10:42:45.4079590Z | Platform            |                                                            | ios                                                                                                                       |
+2026-03-06T10:42:45.4080520Z | Profile UUID        | sigh_com.jasonhorga.vox.keyboard_appstore                  | 45b7ea1c-e89e-40d2-9e80-ad616419102d                                                                                      |
+2026-03-06T10:42:45.4081790Z | Profile Name        | sigh_com.jasonhorga.vox.keyboard_appstore_profile-name     | match AppStore com.jasonhorga.vox.keyboard                                                                                |
+2026-03-06T10:42:45.4082900Z | Profile Path        | sigh_com.jasonhorga.vox.keyboard_appstore_profile-path     | /Users/runner/Library/Developer/Xcode/UserData/Provisioning Profiles/45b7ea1c-e89e-40d2-9e80-ad616419102d.mobileprovision |
+2026-03-06T10:42:45.4083910Z | Development Team ID | sigh_com.jasonhorga.vox.keyboard_appstore_team-id          | 6HB84897DJ                                                                                                                |
+2026-03-06T10:42:45.4084830Z | Certificate Name    | sigh_com.jasonhorga.vox.keyboard_appstore_certificate-name | Apple Distribution: jun zhang (6HB84897DJ)                                                                                |
+2026-03-06T10:42:45.4085760Z +---------------------+------------------------------------------------------------+---------------------------------------------------------------------------------------------------------------------------+
+2026-03-06T10:42:45.4086430Z 
+2026-03-06T10:42:45.4086810Z [10:42:45]: [32m[32mAll required keys, certificates and provisioning profiles are installed 🙌[0m
+2026-03-06T10:42:45.4087260Z [10:42:45]: Setting Provisioning Profile type to 'app-store'
+2026-03-06T10:42:45.4092890Z [10:42:45]: [32m--------------------------------------------[0m
+2026-03-06T10:42:45.4094240Z [10:42:45]: [32m--- Step: latest_testflight_build_number ---[0m
+2026-03-06T10:42:45.4095420Z [10:42:45]: [32m--------------------------------------------[0m
+2026-03-06T10:42:45.4099610Z [10:42:45]: Creating authorization token for App Store Connect API
+2026-03-06T10:42:45.5238460Z [10:42:45]: Fetching the latest build number for any version
+2026-03-06T10:42:45.7531320Z [10:42:45]: Latest upload for version 1.0.0 on ios platform is build: 6
+2026-03-06T10:42:45.7532610Z [10:42:45]: Setting build number to 7
+2026-03-06T10:42:45.7535950Z [10:42:45]: [32m------------------------------------[0m
+2026-03-06T10:42:45.7537160Z [10:42:45]: [32m--- Step: increment_build_number ---[0m
+2026-03-06T10:42:45.7538140Z [10:42:45]: [32m------------------------------------[0m
+2026-03-06T10:42:46.4260020Z Current version of project VoxInput is: 
+2026-03-06T10:42:46.4260300Z     1
+2026-03-06T10:42:46.4260740Z 
+2026-03-06T10:42:46.4264050Z /Users/runner/work/vox-ios/vox-ios
+2026-03-06T10:42:46.4268440Z [10:42:46]: [36m$ cd /Users/runner/work/vox-ios/vox-ios && agvtool new-version -all 7 && cd -[0m
+2026-03-06T10:42:46.5110770Z [10:42:46]: ▸ [35mSetting version of project VoxInput to:[0m
+2026-03-06T10:42:46.5111660Z [10:42:46]: ▸ [35m7.[0m
+2026-03-06T10:42:46.5224900Z [10:42:46]: ▸ [35mAlso setting CFBundleVersion key (assuming it exists)[0m
+2026-03-06T10:42:46.5415320Z [10:42:46]: ▸ [35mUpdating CFBundleVersion in Info.plist(s)...[0m
+2026-03-06T10:42:46.5641510Z [10:42:46]: ▸ [35mUpdated CFBundleVersion in "VoxInput.xcodeproj/../VoxInput/Info.plist" to 7[0m
+2026-03-06T10:42:46.5790370Z [10:42:46]: ▸ [35mUpdated CFBundleVersion in "VoxInput.xcodeproj/../VoxInputKeyboard/Info.plist" to 7[0m
+2026-03-06T10:42:46.5833460Z [10:42:46]: ▸ [35mCannot find "VoxInput.xcodeproj/../YES"[0m
+2026-03-06T10:42:46.5838080Z [10:42:46]: ▸ [35m/Users/runner/work/vox-ios/vox-ios[0m
+2026-03-06T10:42:46.5840890Z [10:42:46]: [32m------------------------------------[0m
+2026-03-06T10:42:46.5842110Z [10:42:46]: [32m--- Step: increment_build_number ---[0m
+2026-03-06T10:42:46.5843110Z [10:42:46]: [32m------------------------------------[0m
+2026-03-06T10:42:46.6801240Z Current version of project VoxInput is: 
+2026-03-06T10:42:46.6802100Z     7
+2026-03-06T10:42:46.6802350Z 
+2026-03-06T10:42:46.6802760Z /Users/runner/work/vox-ios/vox-ios
+2026-03-06T10:42:46.6808260Z [10:42:46]: [36m$ cd /Users/runner/work/vox-ios/vox-ios && agvtool new-version -all 7 && cd -[0m
+2026-03-06T10:42:46.7655450Z [10:42:46]: ▸ [35mSetting version of project VoxInput to:[0m
+2026-03-06T10:42:46.7656380Z [10:42:46]: ▸ [35m7.[0m
+2026-03-06T10:42:46.7758910Z [10:42:46]: ▸ [35mAlso setting CFBundleVersion key (assuming it exists)[0m
+2026-03-06T10:42:46.7907910Z [10:42:46]: ▸ [35mUpdating CFBundleVersion in Info.plist(s)...[0m
+2026-03-06T10:42:46.8071250Z [10:42:46]: ▸ [35mUpdated CFBundleVersion in "VoxInput.xcodeproj/../VoxInput/Info.plist" to 7[0m
+2026-03-06T10:42:46.8191890Z [10:42:46]: ▸ [35mUpdated CFBundleVersion in "VoxInput.xcodeproj/../VoxInputKeyboard/Info.plist" to 7[0m
+2026-03-06T10:42:46.8237760Z [10:42:46]: ▸ [35mCannot find "VoxInput.xcodeproj/../YES"[0m
+2026-03-06T10:42:46.8241130Z [10:42:46]: ▸ [35m/Users/runner/work/vox-ios/vox-ios[0m
+2026-03-06T10:42:46.8368070Z [10:42:46]: [32m-----------------------[0m
+2026-03-06T10:42:46.8369460Z [10:42:46]: [32m--- Step: build_app ---[0m
+2026-03-06T10:42:46.8369870Z [10:42:46]: [32m-----------------------[0m
+2026-03-06T10:42:46.8561860Z [10:42:46]: [33mResolving Swift Package Manager dependencies...[0m
+2026-03-06T10:42:46.8563050Z [10:42:46]: [36m$ xcodebuild -resolvePackageDependencies -scheme VoxInput -project VoxInput.xcodeproj -configuration Release[0m
+2026-03-06T10:42:47.5509590Z [10:42:47]: ▸ [35mCommand line invocation:[0m
+2026-03-06T10:42:47.5512700Z [10:42:47]: ▸ [35m    /Applications/Xcode_16.2.app/Contents/Developer/usr/bin/xcodebuild -resolvePackageDependencies -scheme VoxInput -project VoxInput.xcodeproj -configuration Release[0m
+2026-03-06T10:42:47.5513820Z [10:42:47]: ▸ [35mUser defaults from command line:[0m
+2026-03-06T10:42:47.5514240Z [10:42:47]: ▸ [35m    IDEPackageSupportUseBuiltinSCM = YES[0m
+2026-03-06T10:42:49.2397050Z [10:42:49]: ▸ [35mresolved source packages: [0m
+2026-03-06T10:42:49.2483530Z [10:42:49]: [36m$ xcodebuild -showBuildSettings -scheme VoxInput -project VoxInput.xcodeproj -configuration Release 2>&1[0m
+2026-03-06T10:42:52.2580510Z [10:42:52]: [33mCommand timed out after 3 seconds on try 1 of 4, trying again with a 6 second timeout...[0m
+2026-03-06T10:42:55.0053060Z [10:42:54]: Detected provisioning profile mapping: {:"com.jasonhorga.vox"=>"match AppStore com.jasonhorga.vox", :"com.jasonhorga.vox.keyboard"=>"match AppStore com.jasonhorga.vox.keyboard"}
+2026-03-06T10:42:55.0793520Z 
+2026-03-06T10:42:55.0877920Z +-----------------------------------------------------------------------------------------------------------------------------+
+2026-03-06T10:42:55.0928550Z |                                                   [32mSummary for gym 2.232.2[0m                                                   |
+2026-03-06T10:42:55.1056980Z +-----------------------------------------------------------------+-----------------------------------------------------------+
+2026-03-06T10:42:55.1174540Z | project                                                         | VoxInput.xcodeproj                                        |
+2026-03-06T10:42:55.1276070Z | scheme                                                          | VoxInput                                                  |
+2026-03-06T10:42:55.1386750Z | configuration                                                   | Release                                                   |
+2026-03-06T10:42:55.1491610Z | output_directory                                                | build                                                     |
+2026-03-06T10:42:55.1619530Z | output_name                                                     | VoxInput                                                  |
+2026-03-06T10:42:55.1701740Z | export_method                                                   | app-store                                                 |
+2026-03-06T10:42:55.1809470Z | clean                                                           | true                                                      |
+2026-03-06T10:42:55.1926270Z | export_options.signingStyle                                     | manual                                                    |
+2026-03-06T10:42:55.2029310Z | export_options.provisioningProfiles.com.jasonhorga.vox          | match AppStore com.jasonhorga.vox                         |
+2026-03-06T10:42:55.2141210Z | export_options.provisioningProfiles.com.jasonhorga.vox.keyboard | match AppStore com.jasonhorga.vox.keyboard                |
+2026-03-06T10:42:55.2143790Z | xcargs                                                          | CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM=6HB84897DJ        |
+2026-03-06T10:42:55.2247170Z | silent                                                          | false                                                     |
+2026-03-06T10:42:55.2305710Z | skip_package_ipa                                                | false                                                     |
+2026-03-06T10:42:55.2417570Z | skip_package_pkg                                                | false                                                     |
+2026-03-06T10:42:55.2520900Z | build_path                                                      | /Users/runner/Library/Developer/Xcode/Archives/2026-03-06 |
+2026-03-06T10:42:55.2641620Z | result_bundle                                                   | false                                                     |
+2026-03-06T10:42:55.2744590Z | buildlog_path                                                   | ~/Library/Logs/gym                                        |
+2026-03-06T10:42:55.2882260Z | destination                                                     | generic/platform=iOS                                      |
+2026-03-06T10:42:55.3020420Z | xcodebuild_formatter                                            | xcbeautify                                                |
+2026-03-06T10:42:55.3137710Z | build_timing_summary                                            | false                                                     |
+2026-03-06T10:42:55.3264350Z | skip_profile_detection                                          | false                                                     |
+2026-03-06T10:42:55.3399090Z | xcodebuild_command                                              | xcodebuild                                                |
+2026-03-06T10:42:55.3522790Z | skip_package_dependencies_resolution                            | false                                                     |
+2026-03-06T10:42:55.3624540Z | disable_package_automatic_updates                               | false                                                     |
+2026-03-06T10:42:55.3726020Z | skip_package_repository_fetches                                 | false                                                     |
+2026-03-06T10:42:55.3827400Z | use_system_scm                                                  | false                                                     |
+2026-03-06T10:42:55.3928940Z | generate_appstore_info                                          | false                                                     |
+2026-03-06T10:42:55.3991170Z | xcode_path                                                      | /Applications/Xcode_16.2.app                              |
+2026-03-06T10:42:55.3992080Z +-----------------------------------------------------------------+-----------------------------------------------------------+
+2026-03-06T10:42:55.3992480Z 
+2026-03-06T10:42:55.3994020Z [10:42:55]: [36m$ set -o pipefail && xcodebuild -scheme VoxInput -project VoxInput.xcodeproj -configuration Release -destination 'generic/platform=iOS' -archivePath /Users/runner/Library/Developer/Xcode/Archives/2026-03-06/VoxInput\ 2026-03-06\ 10.42.55.xcarchive CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM=6HB84897DJ clean archive | tee /Users/runner/Library/Logs/gym/VoxInput-VoxInput.log | xcbeautify[0m
+2026-03-06T10:42:55.3995630Z [10:42:55]: ▸ [35m----- xcbeautify -----[0m
+2026-03-06T10:42:55.3996020Z [10:42:55]: ▸ [35mVersion: 3.1.4[0m
+2026-03-06T10:42:55.3996360Z [10:42:55]: ▸ [35m----------------------[0m
+2026-03-06T10:42:56.8487020Z [10:42:56]: ▸ [35m[32;1mClean Succeeded[0m
+2026-03-06T10:42:56.9802610Z [10:42:56]: ▸ [35m[36;1mnote: [0mBuilding targets in dependency order[0m
+2026-03-06T10:42:57.0114660Z [10:42:57]: ▸ [35m[36;1mnote: [0mTarget dependency graph (2 targets)[0m
+2026-03-06T10:43:07.5972890Z [10:43:07]: ▸ [35m[[36mVoxInputKeyboard[0m] [1mWrite Auxiliary File[0m VoxInputKeyboard.hmap[0m
+2026-03-06T10:43:07.5986070Z [10:43:07]: ▸ [35m[[36mVoxInputKeyboard[0m] [1mWrite Auxiliary File[0m VoxInputKeyboard.DependencyMetadataFileList[0m
+2026-03-06T10:43:07.5993460Z [10:43:07]: ▸ [35m[[36mVoxInputKeyboard[0m] [1mWrite Auxiliary File[0m VoxInputKeyboard-project-headers.hmap[0m
+2026-03-06T10:43:07.5996640Z [10:43:07]: ▸ [35m[[36mVoxInputKeyboard[0m] [1mWrite Auxiliary File[0m VoxInputKeyboard-own-target-headers.hmap[0m
+2026-03-06T10:43:07.5999280Z [10:43:07]: ▸ [35m[[36mVoxInputKeyboard[0m] [1mWrite Auxiliary File[0m VoxInputKeyboard-generated-files.hmap[0m
+2026-03-06T10:43:07.6001290Z [10:43:07]: ▸ [35m[[36mVoxInputKeyboard[0m] [1mWrite Auxiliary File[0m VoxInputKeyboard-all-target-headers.hmap[0m
+2026-03-06T10:43:07.6002140Z [10:43:07]: ▸ [35m[[36mVoxInputKeyboard[0m] [1mWrite Auxiliary File[0m VoxInputKeyboard-all-non-framework-target-headers.hmap[0m
+2026-03-06T10:43:07.6003700Z [10:43:07]: ▸ [35m[[36mVoxInputKeyboard[0m] [1mWrite Auxiliary File[0m VoxInputKeyboard_const_extract_protocols.json[0m
+2026-03-06T10:43:07.6004850Z [10:43:07]: ▸ [35m[[36mVoxInputKeyboard[0m] [1mWrite Auxiliary File[0m VoxInputKeyboard.SwiftFileList[0m
+2026-03-06T10:43:07.6005640Z [10:43:07]: ▸ [35m[[36mVoxInputKeyboard[0m] [1mWrite Auxiliary File[0m VoxInputKeyboard.SwiftConstValuesFileList[0m
+2026-03-06T10:43:07.6006490Z [10:43:07]: ▸ [35m[[36mVoxInputKeyboard[0m] [1mWrite Auxiliary File[0m VoxInputKeyboard.LinkFileList[0m
+2026-03-06T10:43:07.6007260Z [10:43:07]: ▸ [35m[[36mVoxInputKeyboard[0m] [1mWrite Auxiliary File[0m VoxInputKeyboard-OutputFileMap.json[0m
+2026-03-06T10:43:07.6008030Z [10:43:07]: ▸ [35m[[36mVoxInputKeyboard[0m] [1mWrite Auxiliary File[0m Entitlements.plist[0m
+2026-03-06T10:43:07.6008730Z [10:43:07]: ▸ [35m[[36mVoxInput[0m] [1mWrite Auxiliary File[0m VoxInput.hmap[0m
+2026-03-06T10:43:07.6009440Z [10:43:07]: ▸ [35m[[36mVoxInput[0m] [1mWrite Auxiliary File[0m VoxInput.DependencyMetadataFileList[0m
+2026-03-06T10:43:07.6010150Z [10:43:07]: ▸ [35m[[36mVoxInput[0m] [1mWrite Auxiliary File[0m VoxInput-project-headers.hmap[0m
+2026-03-06T10:43:07.6010850Z [10:43:07]: ▸ [35m[[36mVoxInput[0m] [1mWrite Auxiliary File[0m VoxInput-own-target-headers.hmap[0m
+2026-03-06T10:43:07.6011590Z [10:43:07]: ▸ [35m[[36mVoxInput[0m] [1mWrite Auxiliary File[0m VoxInput-generated-files.hmap[0m
+2026-03-06T10:43:07.6012290Z [10:43:07]: ▸ [35m[[36mVoxInput[0m] [1mWrite Auxiliary File[0m VoxInput-all-target-headers.hmap[0m
+2026-03-06T10:43:07.6013190Z [10:43:07]: ▸ [35m[[36mVoxInput[0m] [1mWrite Auxiliary File[0m VoxInput-all-non-framework-target-headers.hmap[0m
+2026-03-06T10:43:07.6013960Z [10:43:07]: ▸ [35m[[36mVoxInput[0m] [1mWrite Auxiliary File[0m VoxInput_const_extract_protocols.json[0m
+2026-03-06T10:43:07.6014640Z [10:43:07]: ▸ [35m[[36mVoxInput[0m] [1mWrite Auxiliary File[0m VoxInput.SwiftFileList[0m
+2026-03-06T10:43:07.6015360Z [10:43:07]: ▸ [35m[[36mVoxInput[0m] [1mWrite Auxiliary File[0m VoxInput.SwiftConstValuesFileList[0m
+2026-03-06T10:43:07.6016030Z [10:43:07]: ▸ [35m[[36mVoxInput[0m] [1mWrite Auxiliary File[0m VoxInput.LinkFileList[0m
+2026-03-06T10:43:07.6016670Z [10:43:07]: ▸ [35m[[36mVoxInput[0m] [1mWrite Auxiliary File[0m VoxInput-OutputFileMap.json[0m
+2026-03-06T10:43:07.6017320Z [10:43:07]: ▸ [35m[[36mVoxInput[0m] [1mWrite Auxiliary File[0m Entitlements.plist[0m
+2026-03-06T10:43:07.6018020Z [10:43:07]: ▸ [35m[[36mVoxInputKeyboard[0m] [1mProcessing[0m Info.plist[0m
+2026-03-06T10:43:17.9323100Z [10:43:17]: ▸ [35m::warning file=/Users/runner/work/vox-ios/vox-ios/Shared/AppleSpeechASR.swift,line=81,col=30::capture 'timeout' was never used[0m
+2026-03-06T10:43:17.9347180Z [10:43:17]: ▸ [35m            group.addTask { [timeout] in[0m
+2026-03-06T10:43:17.9354680Z [10:43:17]: ▸ [35m                             ^[0m
+2026-03-06T10:43:17.9394840Z [10:43:17]: ▸ [35m[[36mVoxInputKeyboard[0m] [1mCopy[0m arm64-apple-ios.swiftmodule -> VoxInputKeyboard.swiftmodule[0m
+2026-03-06T10:43:17.9395970Z [10:43:17]: ▸ [35m[[36mVoxInputKeyboard[0m] [1mCopy[0m arm64-apple-ios.swiftdoc -> VoxInputKeyboard.swiftdoc[0m
+2026-03-06T10:43:17.9396970Z [10:43:17]: ▸ [35m[[36mVoxInputKeyboard[0m] [1mCopy[0m arm64-apple-ios.abi.json -> VoxInputKeyboard.abi.json[0m
+2026-03-06T10:43:17.9397720Z [10:43:17]: ▸ [35m[[36mVoxInputKeyboard[0m] [1mLinking[0m VoxInputKeyboard[0m
+2026-03-06T10:43:18.4400130Z [10:43:18]: ▸ [35m[[36mVoxInput[0m] [1mGenerate Asset Symbols[0m Assets.xcassets[0m
+2026-03-06T10:43:18.8767780Z [10:43:18]: ▸ [35m[[36mVoxInput[0m] [1mCompile Asset Catalog[0m Assets.xcassets[0m
+2026-03-06T10:43:18.8775500Z [10:43:18]: ▸ [35m::error file=/Users/runner/work/vox-ios/vox-ios/VoxInput/Assets.xcassets::No simulator runtime version from [<DVTBuildVersion 22F77>, <DVTBuildVersion 22G86>, <DVTBuildVersion 23A8464>, <DVTBuildVersion 23B86>, <DVTBuildVersion 23C54>] available to use with iphonesimulator SDK version <DVTBuildVersion 22C146>[0m
+2026-03-06T10:43:18.8781840Z [10:43:18]: ▸ [35m/* com.apple.actool.document.notices */[0m
+2026-03-06T10:43:18.8785550Z [10:43:18]: ▸ [35m/Users/runner/work/vox-ios/vox-ios/VoxInput/Assets.xcassets:./AppIcon.appiconset/[][ipad][76x76][][][1x][][][][]: notice: 76x76@1x app icons only apply to iPad apps targeting releases of iOS prior to 10.0.[0m
+2026-03-06T10:43:18.8788890Z [10:43:18]: ▸ [35m[[36mVoxInputKeyboard[0m] [1mGenerating[0m VoxInputKeyboard.appex.dSYM[0m
+2026-03-06T10:43:18.8789610Z [10:43:18]: ▸ [35m[[36mVoxInputKeyboard[0m] [1mExtract App Intents Metadata[0m
+2026-03-06T10:43:18.8790490Z [10:43:18]: ▸ [35m[36;1mnote: [0mMetadata extraction skipped. No AppIntents.framework dependency found. (in target 'VoxInputKeyboard' from project 'VoxInput')[0m
+2026-03-06T10:43:18.8948620Z [10:43:18]: ▸ [35m[36;1mnote: [0mDisabling previews because SWIFT_VERSION is set and SWIFT_OPTIMIZATION_LEVEL=-O, expected -Onone (in target 'VoxInputKeyboard' from project 'VoxInput')[0m
+2026-03-06T10:43:18.8993210Z [10:43:18]: ▸ [35m[36;1mnote: [0mDisabling previews because SWIFT_VERSION is set and SWIFT_OPTIMIZATION_LEVEL=-O, expected -Onone (in target 'VoxInput' from project 'VoxInput')[0m
+2026-03-06T10:43:18.8994420Z [10:43:18]: ▸ [35m** ARCHIVE FAILED **[0m
+2026-03-06T10:43:18.8995050Z [10:43:18]: ▸ [35mThe following build commands failed:[0m
+2026-03-06T10:43:18.8998310Z [10:43:18]: ▸ [35m	CompileAssetCatalog /Users/runner/Library/Developer/Xcode/DerivedData/VoxInput-dwizhdyfnjqykpayrdnspebcswav/Build/Intermediates.noindex/ArchiveIntermediates/VoxInput/InstallationBuildProductsLocation/Applications/VoxInput.app /Users/runner/work/vox-ios/vox-ios/VoxInput/Assets.xcassets (in target 'VoxInput' from project 'VoxInput')[0m
+2026-03-06T10:43:18.9004670Z [10:43:18]: ▸ [35m	Archiving project VoxInput with scheme VoxInput[0m
+2026-03-06T10:43:18.9057430Z [10:43:18]: ▸ [35m(2 failures)[0m
+2026-03-06T10:43:18.9058520Z [10:43:18]: [31mExit status: 65[0m
+2026-03-06T10:43:18.9268070Z [10:43:18]: 
+2026-03-06T10:43:18.9272910Z [10:43:18]: [33mMaybe the error shown is caused by using the wrong version of Xcode[0m
+2026-03-06T10:43:18.9303530Z [10:43:18]: [33mFound multiple versions of Xcode in '/Applications/'[0m
+2026-03-06T10:43:18.9305480Z [10:43:18]: [33mMake sure you selected the right version for your project[0m
+2026-03-06T10:43:18.9306250Z [10:43:18]: [33mThis build process was executed using '/Applications/Xcode_16.2.app'[0m
+2026-03-06T10:43:18.9311660Z [10:43:18]: [33mIf you want to update your Xcode path, either[0m
+2026-03-06T10:43:18.9328570Z [10:43:18]: 
+2026-03-06T10:43:18.9338100Z [10:43:18]: - Specify the Xcode version in your Fastfile
+2026-03-06T10:43:18.9343260Z [10:43:18]: ▸ [35mxcversion(version: "8.1") # Selects Xcode 8.1.0[0m
+2026-03-06T10:43:18.9343890Z [10:43:18]: 
+2026-03-06T10:43:18.9344810Z [10:43:18]: - Specify an absolute path to your Xcode installation in your Fastfile
+2026-03-06T10:43:18.9353000Z [10:43:18]: ▸ [35mxcode_select "/Applications/Xcode8.app"[0m
+2026-03-06T10:43:18.9357880Z [10:43:18]: 
+2026-03-06T10:43:18.9459000Z [10:43:18]: - Manually update the path using
+2026-03-06T10:43:18.9463620Z [10:43:18]: ▸ [35msudo xcode-select -s /Applications/Xcode.app[0m
+2026-03-06T10:43:18.9464180Z [10:43:18]: 
+2026-03-06T10:43:18.9464520Z 
+2026-03-06T10:43:18.9464760Z +----------------------------------------------+
+2026-03-06T10:43:18.9465910Z |              [32m[33mBuild environment[0m               |
+2026-03-06T10:43:18.9498670Z +---------------+------------------------------+
+2026-03-06T10:43:18.9499260Z | xcode_path    | /Applications/Xcode_16.2.app |
+2026-03-06T10:43:18.9513670Z | gym_version   | 2.232.2                      |
+2026-03-06T10:43:18.9514300Z | export_method | app-store                    |
+2026-03-06T10:43:18.9514920Z | sdk           | iPhoneOS18.2.sdk             |
+2026-03-06T10:43:18.9519090Z +---------------+------------------------------+
+2026-03-06T10:43:18.9519480Z 
+2026-03-06T10:43:18.9520010Z [10:43:18]: ▸ [35m    cd /Users/runner/work/vox-ios/vox-ios[0m
+2026-03-06T10:43:18.9527830Z [10:43:18]: ▸ [35m    /Applications/Xcode_16.2.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/appintentsnltrainingprocessor --infoplist-path /Users/runner/Library/Developer/Xcode/DerivedData/VoxInput-dwizhdyfnjqykpayrdnspebcswav/Build/Intermediates.noindex/ArchiveIntermediates/VoxInput/IntermediateBuildFilesPath/UninstalledProducts/iphoneos/VoxInputKeyboard.appex/Info.plist --temp-dir-path /Users/runner/Library/Developer/Xcode/DerivedData/VoxInput-dwizhdyfnjqykpayrdnspebcswav/Build/Intermediates.noindex/ArchiveIntermediates/VoxInput/IntermediateBuildFilesPath/VoxInput.build/Release-iphoneos/VoxInputKeyboard.build/ssu --bundle-id com.jasonhorga.vox.keyboard --product-path /Users/runner/Library/Developer/Xcode/DerivedData/VoxInput-dwizhdyfnjqykpayrdnspebcswav/Build/Intermediates.noindex/ArchiveIntermediates/VoxInput/IntermediateBuildFilesPath/UninstalledProducts/iphoneos/VoxInputKeyboard.appex --extracted-metadata-path /Users/runner/Library/Developer/Xcode/DerivedData/VoxInput-dwizhdyfnjqykpayrdnspebcswav/Build/Intermediates.noindex/ArchiveIntermediates/VoxInput/IntermediateBuildFilesPath/UninstalledProducts/iphoneos/VoxInputKeyboard.appex/Metadata.appintents --deployment-postprocessing --archive-ssu-assets[0m
+2026-03-06T10:43:18.9535810Z [10:43:18]: ▸ [35mnote: Disabling previews because SWIFT_VERSION is set and SWIFT_OPTIMIZATION_LEVEL=-O, expected -Onone (in target 'VoxInputKeyboard' from project 'VoxInput')[0m
+2026-03-06T10:43:18.9537960Z [10:43:18]: ▸ [35mnote: Disabling previews because SWIFT_VERSION is set and SWIFT_OPTIMIZATION_LEVEL=-O, expected -Onone (in target 'VoxInput' from project 'VoxInput')[0m
+2026-03-06T10:43:18.9538680Z [10:43:18]: 
+2026-03-06T10:43:18.9539500Z [10:43:18]: [31m⬆️  Check out the few lines of raw `xcodebuild` output above for potential hints on how to solve this error[0m
+2026-03-06T10:43:18.9540470Z [10:43:18]: [33m📋  For the complete and more detailed error log, check the full log at:[0m
+2026-03-06T10:43:18.9541180Z [10:43:18]: [33m📋  /Users/runner/Library/Logs/gym/VoxInput-VoxInput.log[0m
+2026-03-06T10:43:18.9541660Z [10:43:18]: 
+2026-03-06T10:43:18.9542190Z [10:43:18]: [31mLooks like fastlane ran into a build/archive error with your project[0m
+2026-03-06T10:43:18.9542880Z [10:43:18]: [31mIt's hard to tell what's causing the error, so we wrote some guides on how[0m
+2026-03-06T10:43:18.9543740Z [10:43:18]: [31mto troubleshoot build and signing issues: https://docs.fastlane.tools/codesigning/getting-started/[0m
+2026-03-06T10:43:18.9544580Z [10:43:18]: [31mBefore submitting an issue on GitHub, please follow the guide above and make[0m
+2026-03-06T10:43:18.9545270Z [10:43:18]: [31msure your project is set up correctly.[0m
+2026-03-06T10:43:18.9545880Z [10:43:18]: [31mfastlane uses `xcodebuild` commands to generate your binary, you can see the[0m
+2026-03-06T10:43:18.9546590Z [10:43:18]: [31mthe full commands printed out in yellow in the above log.[0m
+2026-03-06T10:43:18.9547710Z [10:43:18]: [31mMake sure to inspect the output above, as usually you'll find more error information there[0m
+2026-03-06T10:43:18.9548370Z [10:43:18]: 
+2026-03-06T10:43:18.9548990Z +-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+2026-03-06T10:43:18.9549950Z |                                                                                 [33mLane Context[0m                                                                                  |
+2026-03-06T10:43:18.9550760Z +------------------------------------+------------------------------------------------------------------------------------------------------------------------------------------+
+2026-03-06T10:43:18.9551630Z | DEFAULT_PLATFORM                   | ios                                                                                                                                      |
+2026-03-06T10:43:18.9552780Z | PLATFORM_NAME                      | ios                                                                                                                                      |
+2026-03-06T10:43:18.9553560Z | LANE_NAME                          | ios beta                                                                                                                                 |
+2026-03-06T10:43:18.9554430Z | KEYCHAIN_PATH                      | ~/Library/Keychains/vox-ci-signing                                                                                                       |
+2026-03-06T10:43:18.9555370Z | ORIGINAL_DEFAULT_KEYCHAIN          | "/Users/runner/Library/Keychains/login.keychain-db"                                                                                      |
+2026-03-06T10:43:18.9556260Z | SIGH_PROFILE_TYPE                  | app-store                                                                                                                                |
+2026-03-06T10:43:18.9557340Z | MATCH_PROVISIONING_PROFILE_MAPPING | {"com.jasonhorga.vox"=>"match AppStore com.jasonhorga.vox", "com.jasonhorga.vox.keyboard"=>"match AppStore com.jasonhorga.vox.keyboard"} |
+2026-03-06T10:43:18.9558380Z | LATEST_TESTFLIGHT_BUILD_NUMBER     | 6                                                                                                                                        |
+2026-03-06T10:43:18.9559210Z | LATEST_TESTFLIGHT_VERSION          | 1.0.0                                                                                                                                    |
+2026-03-06T10:43:18.9559900Z | BUILD_NUMBER                       | 7                                                                                                                                        |
+2026-03-06T10:43:18.9561390Z +------------------------------------+------------------------------------------------------------------------------------------------------------------------------------------+
+2026-03-06T10:43:18.9564960Z [10:43:18]: [31mCalled from Fastfile at line 135[0m
+2026-03-06T10:43:18.9565460Z [10:43:18]: [31m```[0m
+2026-03-06T10:43:18.9566760Z [10:43:18]: [31m    133:	    )[0m
+2026-03-06T10:43:18.9567110Z [10:43:18]: [31m    134:	[0m
+2026-03-06T10:43:18.9567460Z [10:43:18]: [31m => 135:	    build_app([0m
+2026-03-06T10:43:18.9567900Z [10:43:18]: [31m    136:	      project: "VoxInput.xcodeproj",[0m
+2026-03-06T10:43:18.9568360Z [10:43:18]: [31m    137:	      scheme: "VoxInput",[0m
+2026-03-06T10:43:18.9568690Z [10:43:18]: [31m```[0m
+2026-03-06T10:43:18.9569090Z [10:43:18]: [31mError building the application - see the log above[0m
+2026-03-06T10:43:19.0188950Z 
+2026-03-06T10:43:19.0194790Z +-----------------------------------------------------+
+2026-03-06T10:43:19.0199090Z |                  [32mfastlane summary[0m                   |
+2026-03-06T10:43:19.0204250Z [31m
+2026-03-06T10:43:19.0205130Z +------+--------------------------------+-------------+
+2026-03-06T10:43:19.0211530Z [!] Error building the application - see the log above[0m
+2026-03-06T10:43:19.0214060Z | Step | Action                         | Time (in s) |
+2026-03-06T10:43:19.0215860Z +------+--------------------------------+-------------+
+2026-03-06T10:43:19.0217620Z | 1    | default_platform               | 0           |
+2026-03-06T10:43:19.0218740Z | 2    | app_store_connect_api_key      | 0           |
+2026-03-06T10:43:19.0219810Z | 3    | create_keychain                | 0           |
+2026-03-06T10:43:19.0221490Z | 4    | match                          | 9           |
+2026-03-06T10:43:19.0221970Z | 5    | latest_testflight_build_number | 0           |
+2026-03-06T10:43:19.0222400Z | 6    | increment_build_number         | 0           |
+2026-03-06T10:43:19.0222900Z | 7    | increment_build_number         | 0           |
+2026-03-06T10:43:19.0223540Z | 💥   | [31mbuild_app[0m                      | 32          |
+2026-03-06T10:43:19.0224380Z +------+--------------------------------+-------------+
+2026-03-06T10:43:19.0224650Z 
+2026-03-06T10:43:19.0224860Z [10:43:19]: [31mfastlane finished with errors[0m
+2026-03-06T10:43:19.0736850Z ##[error]Process completed with exit code 1.
+2026-03-06T10:43:19.0969650Z Post job cleanup.
+2026-03-06T10:43:19.4967050Z [command]/opt/homebrew/bin/git version
+2026-03-06T10:43:19.5413510Z git version 2.53.0
+2026-03-06T10:43:19.5485210Z Copying '/Users/runner/.gitconfig' to '/Users/runner/work/_temp/a768270c-4c94-43c5-9bda-b325118678f0/.gitconfig'
+2026-03-06T10:43:19.5497640Z Temporarily overriding HOME='/Users/runner/work/_temp/a768270c-4c94-43c5-9bda-b325118678f0' before making global git config changes
+2026-03-06T10:43:19.5513230Z Adding repository directory to the temporary git global config as a safe directory
+2026-03-06T10:43:19.5517220Z [command]/opt/homebrew/bin/git config --global --add safe.directory /Users/runner/work/vox-ios/vox-ios
+2026-03-06T10:43:19.5717240Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-03-06T10:43:19.5791580Z [command]/opt/homebrew/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-03-06T10:43:19.8107870Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-03-06T10:43:19.8219880Z http.https://github.com/.extraheader
+2026-03-06T10:43:19.8583430Z [command]/opt/homebrew/bin/git config --local --unset-all http.https://github.com/.extraheader
+2026-03-06T10:43:19.8843270Z [command]/opt/homebrew/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-03-06T10:43:20.1026880Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-03-06T10:43:20.1334310Z [command]/opt/homebrew/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-03-06T10:43:20.3461210Z Cleaning up orphan processes
+2026-03-06T10:43:20.7391790Z Terminate orphan process: pid (27331) (ibtoold)
+2026-03-06T10:43:20.8556900Z Terminate orphan process: pid (27016) (ibtoold)

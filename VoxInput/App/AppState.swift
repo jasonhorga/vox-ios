@@ -206,16 +206,30 @@ final class AppState {
         config.hasCompletedSetup
     }
 
-    /// 键盘闪跳唤醒主 App 后，展示提示
-    func markDaemonWokenByKeyboard() {
-        showResult = false
-        statusMessage = "后台语音守护已唤醒，可返回键盘继续语音输入"
+    /// 是否正在为后台录音准备音频会话（URL Scheme 唤醒流程）
+    private(set) var isPrimingAudio: Bool = false
 
-        Task {
-            try? await Task.sleep(nanoseconds: UInt64(Constants.UI.toastDuration * 1_000_000_000))
-            if recordingState == .idle {
-                statusMessage = ""
-            }
+    /// beta.32: 键盘闪跳唤醒主 App 后，异步准备音频会话
+    /// 主 App 会短暂停留在前台并显示"正在获取麦克风..."，
+    /// 等音频会话确认激活后再允许退出。
+    func primeDaemonForKeyboardWakeup(daemon: AudioDaemonService) async {
+        showResult = false
+        isPrimingAudio = true
+        statusMessage = "正在获取麦克风..."
+
+        let success = await daemon.primeForBackgroundRecording()
+
+        isPrimingAudio = false
+
+        if success {
+            statusMessage = "后台语音守护已就绪"
+        } else {
+            statusMessage = "麦克风准备失败，请重试"
+        }
+
+        try? await Task.sleep(nanoseconds: UInt64(Constants.UI.toastDuration * 1_000_000_000))
+        if recordingState == .idle {
+            statusMessage = ""
         }
     }
 

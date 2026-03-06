@@ -121,25 +121,59 @@ final class AudioDaemonService {
 
     /// 在 URL Scheme 唤醒时，趁 App 还在前台，提前激活音频会话并开始后台任务。
     /// 这是解决时序竞争的关键：在 App 退入后台之前抢先占住音频会话。
-    func primeForBackgroundRecording() {
+    ///
+    /// beta.32: 改为 async，等系统充分完成前台切换后再激活音频会话，
+    /// 并使用多次重试 + 递增延迟，彻底消除 OSStatus 560557684 竞争。
+    /// 返回 true 表示音频会话已确认激活。
+    func primeForBackgroundRecording() async -> Bool {
         beginBackgroundKeepAlive(reason: "url-scheme-prime")
-
-        // 趁 App 还在前台（URL Scheme 刚唤醒），立刻激活音频会话
-        do {
-            let session = AVAudioSession.sharedInstance()
-            try session.setCategory(.playAndRecord, mode: .measurement, options: [.mixWithOthers, .defaultToSpeaker])
-            try session.setActive(true, options: [])
-            try startSilentKeeperIfNeeded(trigger: "url-scheme-prime")
-            SharedLogger.info("audio session primed via URL scheme while app is foreground")
-        } catch {
-            SharedLogger.error("primeForBackgroundRecording failed: \(error.localizedDescription)")
-        }
 
         // 唤醒 daemon 状态机
         if state == .sleeping || state == .dead {
             publishState(.idle, clearError: true)
         }
         touchActivity()
+
+        // 等待系统完成前台切换（关键！不能立刻激活，系统需要时间）
+        try? await Task.sleep(nanoseconds: 300_000_000) // 0.3s
+
+        let session = AVAudioSession.sharedInstance()
+        let retryDelaysNs: [UInt64] = [
+            200_000_000,  // 0.2s
+            300_000_000,  // 0.3s
+            500_000_000,  // 0.5s
+            800_000_000,  // 0.8s
+        ]
+
+        for attempt in 1...5 {
+            do {
+                try session.setCategory(.playAndRecord, mode: .measurement, options: [.mixWithOthers, .defaultToSpeaker])
+                try session.setActive(true, options: [])
+
+                // 验证会话确实处于活跃状态
+                let isOtherPlaying = session.isOtherAudioPlaying
+                SharedLogger.info("audio session primed on attempt \(attempt)/5 (otherAudioPlaying=\(isOtherPlaying))")
+
+                // 启动静音保活
+                do {
+                    try startSilentKeeperIfNeeded(trigger: "url-scheme-prime-attempt-\(attempt)")
+                } catch {
+                    SharedLogger.error("silent keeper start failed after session prime: \(error.localizedDescription)")
+                    // 静音保活失败不影响主流程，session 已经激活
+                }
+
+                SharedLogger.info("audio session primed via URL scheme while app is foreground (attempt \(attempt))")
+                return true
+            } catch {
+                SharedLogger.error("primeForBackgroundRecording attempt \(attempt)/5 failed: \(error.localizedDescription)")
+                if attempt < 5 {
+                    try? await Task.sleep(nanoseconds: retryDelaysNs[attempt - 1])
+                }
+            }
+        }
+
+        SharedLogger.error("primeForBackgroundRecording: all 5 attempts failed")
+        return false
     }
 
     // MARK: - Darwin Wake Observer
@@ -385,8 +419,10 @@ final class AudioDaemonService {
         try session.setCategory(.playAndRecord, mode: .measurement, options: [.mixWithOthers, .defaultToSpeaker])
 
         // 重试激活音频会话，应对后台转换时序竞争（OSStatus 560557684）
+        // beta.32: 增加重试次数和延迟时间
+        let retryDelays: [TimeInterval] = [0.15, 0.25, 0.40, 0.60]
         var lastError: Error?
-        for attempt in 1...3 {
+        for attempt in 1...5 {
             do {
                 try session.setActive(true, options: [])
                 if attempt > 1 {
@@ -395,14 +431,14 @@ final class AudioDaemonService {
                 return
             } catch {
                 lastError = error
-                SharedLogger.error("audio session activation attempt \(attempt)/3 failed: \(error.localizedDescription)")
-                if attempt < 3 {
+                SharedLogger.error("audio session activation attempt \(attempt)/5 failed: \(error.localizedDescription)")
+                if attempt < 5 {
                     // 短暂等待让系统完成前后台切换
-                    Thread.sleep(forTimeInterval: Double(attempt) * 0.1)  // 100ms, 200ms
+                    Thread.sleep(forTimeInterval: retryDelays[attempt - 1])
                 }
             }
         }
-        throw lastError ?? VoxError.recordingFailed("音频会话激活失败（3次重试均失败）")
+        throw lastError ?? VoxError.recordingFailed("音频会话激活失败（5次重试均失败）")
     }
 
     private func startSilentKeeperIfNeeded(trigger: String) throws {

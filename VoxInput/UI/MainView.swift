@@ -103,6 +103,32 @@ struct MainView: View {
             .onOpenURL { url in
                 handleIncomingURL(url)
             }
+            // beta.32: 音频准备覆盖层 — 强制前台停留
+            .overlay {
+                if appState.isPrimingAudio {
+                    ZStack {
+                        Color.black.opacity(0.3)
+                            .ignoresSafeArea()
+
+                        VStack(spacing: 16) {
+                            ProgressView()
+                                .controlSize(.large)
+                                .tint(.white)
+                            Text("正在获取麦克风...")
+                                .font(.headline)
+                                .foregroundStyle(.white)
+                            Text("请稍候，不要切走")
+                                .font(.caption)
+                                .foregroundStyle(.white.opacity(0.7))
+                        }
+                        .padding(32)
+                        .background(.ultraThinMaterial)
+                        .clipShape(RoundedRectangle(cornerRadius: 16))
+                    }
+                    .transition(.opacity)
+                }
+            }
+            .animation(.easeInOut(duration: 0.2), value: appState.isPrimingAudio)
         }
     }
 
@@ -275,16 +301,18 @@ struct MainView: View {
 
     /// 处理 URL Scheme（voxinput://record）
     /// beta.27: 仅用于"极速闪跳"唤醒主 App 守护进程，不再在前台直接代替键盘录音
-    /// beta.31: 关键修复 — 趁 App 还在前台时立刻激活音频会话，解决后台转换时序竞争
+    /// beta.32: 关键修复 — 强制主 App 停留在前台，异步等待音频会话激活确认，
+    ///          彻底解决 OSStatus 560557684 时序竞争问题
     private func handleIncomingURL(_ url: URL) {
         guard url.scheme?.lowercased() == "voxinput" else { return }
         guard url.host?.lowercased() == "record" else { return }
 
-        // 关键修复：趁 App 还在前台（URL Scheme 刚打开），立刻激活音频会话
-        // 这样当 App 退入后台时，音频会话已经激活，录音不会被系统拒绝
-        // 解决 OSStatus 560557684 时序竞争问题
-        daemonService.primeForBackgroundRecording()
-        appState.markDaemonWokenByKeyboard()
+        // beta.32: 异步启动音频准备流程
+        // 主 App 会显示"正在获取麦克风..."覆盖层，强制停留在前台
+        // 直到音频会话 100% 确认激活后才允许退出
+        Task {
+            await appState.primeDaemonForKeyboardWakeup(daemon: daemonService)
+        }
     }
 }
 
