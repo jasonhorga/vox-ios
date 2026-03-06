@@ -53,6 +53,12 @@ final class ConfigStore {
         set { store.whisperModel = newValue }
     }
     
+    /// Qwen 模型名称
+    var qwenModel: String {
+        get { store.qwenModel }
+        set { store.qwenModel = newValue }
+    }
+    
     /// 是否已完成首次设置
     var hasCompletedSetup: Bool {
         get { store.hasCompletedSetup }

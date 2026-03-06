@@ -248,7 +248,7 @@ final class KeyboardState {
         case .qwen:
             let apiKey = config.qwenAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !apiKey.isEmpty else { throw VoxError.apiKeyMissing }
-            return QwenASR(apiKey: apiKey)
+            return QwenASR(apiKey: apiKey, model: config.qwenModel)
             
         case .whisper:
             let apiKey = config.whisperAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)

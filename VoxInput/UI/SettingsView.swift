@@ -16,6 +16,7 @@ struct SettingsView: View {
     
     /// API Key 输入临时状态（避免每次按键都写入 UserDefaults）
     @State private var qwenKeyInput: String = ""
+    @State private var qwenModelInput: String = ""
     @State private var whisperKeyInput: String = ""
     @State private var whisperURLInput: String = ""
     @State private var whisperModelInput: String = ""
@@ -45,10 +46,14 @@ struct SettingsView: View {
                         SecureField("DashScope API Key", text: $qwenKeyInput)
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
+                        
+                        TextField("模型名称", text: $qwenModelInput)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
                     } header: {
                         Text("Qwen ASR 配置")
                     } footer: {
-                        Text("从阿里云 DashScope 控制台获取 API Key")
+                        Text("从阿里云 DashScope 控制台获取 API Key，可按需自定义模型名称")
                     }
                 }
                 
@@ -161,6 +166,7 @@ struct SettingsView: View {
     /// 从 ConfigStore 加载当前值
     private func loadCurrentValues() {
         qwenKeyInput = config.qwenAPIKey
+        qwenModelInput = config.qwenModel
         whisperKeyInput = config.whisperAPIKey
         whisperURLInput = config.whisperBaseURL
         whisperModelInput = config.whisperModel
@@ -169,6 +175,8 @@ struct SettingsView: View {
     /// 保存设置到 ConfigStore
     private func saveSettings() {
         config.qwenAPIKey = qwenKeyInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedQwenModel = qwenModelInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        config.qwenModel = trimmedQwenModel.isEmpty ? "qwen-omni-turbo" : trimmedQwenModel
         config.whisperAPIKey = whisperKeyInput.trimmingCharacters(in: .whitespacesAndNewlines)
         config.whisperBaseURL = whisperURLInput.trimmingCharacters(in: .whitespacesAndNewlines)
         config.whisperModel = whisperModelInput.trimmingCharacters(in: .whitespacesAndNewlines)

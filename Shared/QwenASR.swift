@@ -25,15 +25,24 @@ final class QwenASR: ASRProvider {
     /// URLSession（用于网络请求）
     private let session: URLSession
     
+    /// Qwen 模型名称
+    private let model: String
+    
     // MARK: - 初始化
     
     /// 初始化 Qwen ASR
     /// - Parameters:
     ///   - apiKey: DashScope API Key
     ///   - baseURL: API 地址，默认使用 DashScope 兼容模式
-    init(apiKey: String, baseURL: String = Constants.Network.qwenBaseURL) {
+    ///   - model: Qwen 模型名称
+    init(
+        apiKey: String,
+        baseURL: String = Constants.Network.qwenBaseURL,
+        model: String = "qwen-omni-turbo"
+    ) {
         self.apiKey = apiKey
         self.baseURL = baseURL
+        self.model = model
         
         // 配置带超时的 URLSession
         let config = URLSessionConfiguration.default
@@ -63,7 +72,7 @@ final class QwenASR: ASRProvider {
         // 3. 构建 DashScope Chat API 请求体
         // Qwen-ASR 使用 Chat Completions 格式，音频作为 input_audio 类型发送
         let requestBody: [String: Any] = [
-            "model": "qwen-omni-turbo",
+            "model": model,
             "messages": [
                 [
                     "role": "user",

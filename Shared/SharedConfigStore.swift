@@ -38,6 +38,11 @@ final class SharedConfigStore {
         didSet { saveString(whisperModel, forKey: .whisperModel) }
     }
     
+    /// Qwen 模型名称
+    var qwenModel: String {
+        didSet { saveString(qwenModel, forKey: .qwenModel) }
+    }
+    
     /// 是否已完成首次设置
     var hasCompletedSetup: Bool {
         didSet { saveBool(hasCompletedSetup, forKey: .hasCompletedSetup) }
@@ -71,6 +76,7 @@ final class SharedConfigStore {
         case asrProvider = "vox.asr.provider"
         case whisperBaseURL = "vox.asr.whisper.baseurl"
         case whisperModel = "vox.asr.whisper.model"
+        case qwenModel = "vox.asr.qwen.model"
         case hasCompletedSetup = "vox.app.hasCompletedSetup"
         case language = "vox.asr.language"
         case translationMode = "vox.postprocess.translationMode"
@@ -92,6 +98,9 @@ final class SharedConfigStore {
         
         self.whisperModel = defaults.string(forKey: Key.whisperModel.rawValue)
             ?? "whisper-1"
+        
+        self.qwenModel = defaults.string(forKey: Key.qwenModel.rawValue)
+            ?? "qwen-omni-turbo"
         
         self.hasCompletedSetup = defaults.bool(forKey: Key.hasCompletedSetup.rawValue)
         
@@ -147,6 +156,11 @@ final class SharedConfigStore {
             self.whisperModel = model
         }
         
+        if let qwenModel = oldDefaults.string(forKey: Key.qwenModel.rawValue), !qwenModel.isEmpty {
+            defaults.set(qwenModel, forKey: Key.qwenModel.rawValue)
+            self.qwenModel = qwenModel
+        }
+        
         if let lang = oldDefaults.string(forKey: Key.language.rawValue) {
             defaults.set(lang, forKey: Key.language.rawValue)
             self.language = lang
@@ -194,6 +208,7 @@ final class SharedConfigStore {
         whisperAPIKey = ""
         whisperBaseURL = Constants.Network.whisperDefaultURL
         whisperModel = "whisper-1"
+        qwenModel = "qwen-omni-turbo"
         hasCompletedSetup = false
         language = "auto"
         translationMode = .none
