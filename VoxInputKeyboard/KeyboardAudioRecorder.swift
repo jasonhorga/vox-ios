@@ -77,21 +77,11 @@ final class KeyboardAudioRecorder: NSObject {
     /// 尝试启动录音
     private func attemptStart() throws {
         cleanupTempFile()
-        
+
         let session = AVAudioSession.sharedInstance()
-        
+
         do {
-            // 键盘扩展关键配置：
-            // .playAndRecord: 允许同时播放和录音
-            // .mixWithOthers: 不中断宿主 App 的音频播放
-            // .defaultToSpeaker: 确保扬声器输出
-            // .allowBluetooth: 支持蓝牙耳机录音
-            try session.setCategory(
-                .playAndRecord,
-                mode: .measurement,
-                options: [.mixWithOthers, .defaultToSpeaker, .allowBluetooth]
-            )
-            try session.setActive(true, options: [])
+            try configureAudioSessionForKeyboardRecording(session)
         } catch {
             if retryCount < Self.maxRetryCount {
                 retryCount += 1
@@ -100,7 +90,7 @@ final class KeyboardAudioRecorder: NSObject {
             }
             throw VoxError.recordingFailed("AudioSession 配置失败: \(error.localizedDescription)")
         }
-        
+
         // 录音参数：与主 App 一致 16kHz / 16bit / Mono / WAV
         let settings: [String: Any] = [
             AVFormatIDKey: Int(kAudioFormatLinearPCM),
@@ -111,31 +101,32 @@ final class KeyboardAudioRecorder: NSObject {
             AVLinearPCMIsBigEndianKey: false,
             AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue
         ]
-        
+
         let url = tempRecordingURL
-        
+
         do {
             let recorder = try AVAudioRecorder(url: url, settings: settings)
             recorder.delegate = self
             recorder.isMeteringEnabled = true
-            
+            recorder.prepareToRecord()
+
             guard recorder.record() else {
                 if retryCount < Self.maxRetryCount {
                     retryCount += 1
                     try attemptStart()
                     return
                 }
-                throw VoxError.recordingFailed("录音启动失败")
+                throw VoxError.recordingFailed("录音启动失败: AVAudioRecorder.record() returned false")
             }
-            
+
             self.audioRecorder = recorder
             self.recordingURL = url
             self.isRecording = true
             self.silenceDetector.reset()
-            
+
             startMeterTimer()
             startTimeoutTimer()
-            
+
         } catch let error as VoxError {
             throw error
         } catch {
@@ -144,7 +135,33 @@ final class KeyboardAudioRecorder: NSObject {
                 try attemptStart()
                 return
             }
-            throw VoxError.recordingFailed(error.localizedDescription)
+            throw VoxError.recordingFailed("录音启动失败: \(error.localizedDescription)")
+        }
+    }
+
+    /// 键盘扩展录音会话配置（带 fallback）
+    /// 说明：Keyboard Extension 环境对 category / option 更敏感，
+    /// 先尝试 .record + .measurement，失败后再回退到最保守配置。
+    private func configureAudioSessionForKeyboardRecording(_ session: AVAudioSession) throws {
+        do {
+            try session.setCategory(.record, mode: .measurement, options: [])
+            try session.setActive(true, options: [])
+            return
+        } catch {
+            // fallback：先停用，再尝试兼容性更高的一组 options
+            try? session.setActive(false, options: .notifyOthersOnDeactivation)
+
+            do {
+                try session.setCategory(
+                    .playAndRecord,
+                    mode: .measurement,
+                    options: [.mixWithOthers, .defaultToSpeaker, .allowBluetooth]
+                )
+                try session.setActive(true, options: [])
+                return
+            } catch {
+                throw VoxError.recordingFailed("AudioSession 激活失败: \(error.localizedDescription)")
+            }
         }
     }
     

@@ -145,7 +145,11 @@ final class KeyboardState {
             }
             
         } catch {
-            phase = .error("录音启动失败")
+            let detail = error.localizedDescription
+            let message = detail.isEmpty ? "录音启动失败" : "录音启动失败: \(detail)"
+            phase = .error(message)
+            statusMessage = message
+            SharedLogger.error("录音启动失败: \(detail)")
             scheduleReset()
         }
     }

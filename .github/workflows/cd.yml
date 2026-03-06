@@ -25,6 +25,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Select stable Xcode 16.2
+        run: |
+          sudo xcode-select -s /Applications/Xcode_16.2.app
+          xcode-select -p
+          xcodebuild -version
+
       - name: Show Xcode / SDK diagnostics (runner default)
         run: |
           echo "DEVELOPER_DIR=${DEVELOPER_DIR:-<not-set>}"
