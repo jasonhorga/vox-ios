@@ -43,6 +43,9 @@ class KeyboardViewController: UIInputViewController {
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
+        if hostingController == nil {
+            setupKeyboardView()
+        }
         checkEnvironment()
         Task { @MainActor in
             keyboardState.activate()
@@ -63,6 +66,11 @@ class KeyboardViewController: UIInputViewController {
         Task { @MainActor in
             keyboardState.deactivate()
         }
+        cleanupHostingController()
+    }
+
+    deinit {
+        cleanupHostingController()
     }
 
     override func viewDidLayoutSubviews() {
@@ -76,6 +84,13 @@ class KeyboardViewController: UIInputViewController {
         if heightConstraint?.constant != newHeight {
             heightConstraint?.constant = newHeight
         }
+    }
+
+    private func cleanupHostingController() {
+        hostingController?.willMove(toParent: nil)
+        hostingController?.view.removeFromSuperview()
+        hostingController?.removeFromParent()
+        hostingController = nil
     }
 
     // MARK: - 输入上下文变化

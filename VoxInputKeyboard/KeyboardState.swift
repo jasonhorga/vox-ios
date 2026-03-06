@@ -16,6 +16,14 @@ enum KeyboardPhase: Equatable {
     case error(String)
 }
 
+private struct IPCSnapshot {
+    let state: String
+    let errorMessage: String?
+    let heartbeat: TimeInterval
+    let resultID: Int
+    let resultText: String?
+}
+
 @Observable
 @MainActor
 final class KeyboardState {
@@ -44,10 +52,11 @@ final class KeyboardState {
 
     // MARK: - IPC Internals
 
-    private let defaults = AppGroup.sharedDefaults
     let config = SharedConfigStore.shared
 
+    private let ipcQueue = DispatchQueue(label: "com.jasonhorga.vox.keyboard.ipc", qos: .userInitiated)
     private var ipcTimer: Timer?
+    private var daemonStateObserver: DarwinNotificationObserver?
     private var lastResultID: Int = 0
     private var lastHeartbeatAt: TimeInterval = 0
 
@@ -59,6 +68,7 @@ final class KeyboardState {
     private var hasSeenRecordingInCurrentRequest = false
     private var hasSentStopInCurrentRequest = false
     private var requestStartedAt: Date?
+    private var startupAckTimeoutTask: Task<Void, Never>?
     private var requestTimeoutTask: Task<Void, Never>?
 
     // MARK: - Wiring
@@ -75,12 +85,15 @@ final class KeyboardState {
         config.reload()
         checkEnvironment()
         startIPCMonitoringIfNeeded()
+        startDarwinStateObserverIfNeeded()
         updateFromIPC()
     }
 
     func deactivate() {
         ipcTimer?.invalidate()
         ipcTimer = nil
+        daemonStateObserver?.stop()
+        daemonStateObserver = nil
         clearRequestTracking()
     }
 
@@ -90,7 +103,7 @@ final class KeyboardState {
         if let value = systemHasFullAccess {
             hasFullAccess = value
         } else {
-            hasFullAccess = checkFullAccess()
+            probeFullAccessAsync()
         }
 
         hasMicPermission = checkMicPermission()
@@ -140,7 +153,7 @@ final class KeyboardState {
         }
 
         beginRequestTracking()
-        _ = sendCommand(.start)
+        sendCommand(.start, postWakeNotification: true)
         phase = .recording
         statusMessage = "录音中..."
         return true
@@ -149,13 +162,13 @@ final class KeyboardState {
     func stopRecording() {
         guard phase == .recording else { return }
         hasSentStopInCurrentRequest = true
-        _ = sendCommand(.stop)
+        sendCommand(.stop)
         phase = .processing
         statusMessage = "识别中..."
     }
 
     func cancelRecording() {
-        _ = sendCommand(.cancel)
+        sendCommand(.cancel)
         clearRequestTracking()
         phase = .idle
         statusMessage = ""
@@ -168,19 +181,51 @@ final class KeyboardState {
         guard ipcTimer == nil else { return }
 
         ipcTimer = Timer.scheduledTimer(withTimeInterval: Constants.Keyboard.ipcPollInterval, repeats: true) { [weak self] _ in
+            self?.updateFromIPC()
+        }
+    }
+
+    private func startDarwinStateObserverIfNeeded() {
+        guard daemonStateObserver == nil else { return }
+
+        daemonStateObserver = DarwinNotificationObserver(name: .daemonStateDidChange) { [weak self] in
             Task { @MainActor [weak self] in
                 self?.updateFromIPC()
             }
         }
+        daemonStateObserver?.start()
     }
 
     private func updateFromIPC() {
-        let state = defaults.string(forKey: AppGroup.ipcStateKey) ?? "dead"
-        daemonState = state
-        daemonErrorMessage = defaults.string(forKey: AppGroup.ipcErrorKey)
-        lastHeartbeatAt = defaults.double(forKey: AppGroup.ipcHeartbeatKey)
+        ipcQueue.async { [weak self] in
+            guard let self else { return }
+            let defaults = AppGroup.sharedDefaults
+            let snapshot = IPCSnapshot(
+                state: defaults.string(forKey: AppGroup.ipcStateKey) ?? "dead",
+                errorMessage: defaults.string(forKey: AppGroup.ipcErrorKey),
+                heartbeat: defaults.double(forKey: AppGroup.ipcHeartbeatKey),
+                resultID: defaults.integer(forKey: AppGroup.ipcResultIDKey),
+                resultText: defaults.string(forKey: AppGroup.ipcResultKey)
+            )
 
-        if let inserted = consumeResultIfNeeded() {
+            Task { @MainActor [weak self] in
+                self?.apply(snapshot)
+            }
+        }
+    }
+
+    private func apply(_ snapshot: IPCSnapshot) {
+        daemonState = snapshot.state
+        daemonErrorMessage = snapshot.errorMessage
+        lastHeartbeatAt = snapshot.heartbeat
+
+        if snapshot.resultID > 0,
+           snapshot.resultID != lastResultID,
+           let inserted = snapshot.resultText,
+           !inserted.isEmpty {
+            lastResultID = snapshot.resultID
+            clearResultAsync(expectedID: snapshot.resultID)
+
             clearRequestTracking()
             insertTextHandler?(inserted)
             phase = .done("已输入：\(inserted)")
@@ -189,13 +234,24 @@ final class KeyboardState {
             return
         }
 
-        syncPhaseWithDaemonState(state)
+        syncPhaseWithDaemonState(snapshot.state)
+    }
+
+    private func clearResultAsync(expectedID: Int) {
+        ipcQueue.async {
+            let defaults = AppGroup.sharedDefaults
+            let latestID = defaults.integer(forKey: AppGroup.ipcResultIDKey)
+            guard latestID == expectedID else { return }
+            defaults.removeObject(forKey: AppGroup.ipcResultKey)
+        }
     }
 
     private func syncPhaseWithDaemonState(_ state: String) {
         switch state {
         case "recording":
             hasSeenRecordingInCurrentRequest = true
+            startupAckTimeoutTask?.cancel()
+            startupAckTimeoutTask = nil
             phase = .recording
             statusMessage = "录音中..."
 
@@ -237,20 +293,6 @@ final class KeyboardState {
         }
     }
 
-    private func consumeResultIfNeeded() -> String? {
-        let resultID = defaults.integer(forKey: AppGroup.ipcResultIDKey)
-        guard resultID > 0, resultID != lastResultID else { return nil }
-
-        lastResultID = resultID
-        guard let text = defaults.string(forKey: AppGroup.ipcResultKey), !text.isEmpty else {
-            return nil
-        }
-
-        defaults.removeObject(forKey: AppGroup.ipcResultKey)
-        defaults.synchronize()
-        return text
-    }
-
     // MARK: - Command / Wakeup
 
     private enum IPCCommand: String {
@@ -259,14 +301,18 @@ final class KeyboardState {
         case cancel
     }
 
-    @discardableResult
-    private func sendCommand(_ command: IPCCommand) -> Int {
-        let nextID = defaults.integer(forKey: AppGroup.ipcCommandIDKey) + 1
-        defaults.set(command.rawValue, forKey: AppGroup.ipcCommandKey)
-        defaults.set(nextID, forKey: AppGroup.ipcCommandIDKey)
-        defaults.set(Date().timeIntervalSince1970, forKey: AppGroup.ipcCommandAtKey)
-        defaults.synchronize()
-        return nextID
+    private func sendCommand(_ command: IPCCommand, postWakeNotification: Bool = false) {
+        ipcQueue.async {
+            let defaults = AppGroup.sharedDefaults
+            let nextID = defaults.integer(forKey: AppGroup.ipcCommandIDKey) + 1
+            defaults.set(command.rawValue, forKey: AppGroup.ipcCommandKey)
+            defaults.set(nextID, forKey: AppGroup.ipcCommandIDKey)
+            defaults.set(Date().timeIntervalSince1970, forKey: AppGroup.ipcCommandAtKey)
+
+            if postWakeNotification {
+                AppGroupDarwinNotification.wakeUpAndRecord.post()
+            }
+        }
     }
 
     private func shouldWakeMainApp() -> Bool {
@@ -297,10 +343,18 @@ final class KeyboardState {
         hasSentStopInCurrentRequest = false
         requestStartedAt = Date()
 
+        startupAckTimeoutTask = Task { [weak self] in
+            let timeout = Constants.Keyboard.startupAckTimeout
+            try? await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
+            await MainActor.run { [weak self] in
+                self?.handleStartupAckTimeoutIfNeeded()
+            }
+        }
+
         requestTimeoutTask = Task { [weak self] in
             let timeout = Constants.Keyboard.resultTimeout
             try? await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
-            await MainActor.run {
+            await MainActor.run { [weak self] in
                 self?.handleRequestTimeoutIfNeeded()
             }
         }
@@ -311,8 +365,31 @@ final class KeyboardState {
         hasSeenRecordingInCurrentRequest = false
         hasSentStopInCurrentRequest = false
         requestStartedAt = nil
+
+        startupAckTimeoutTask?.cancel()
+        startupAckTimeoutTask = nil
+
         requestTimeoutTask?.cancel()
         requestTimeoutTask = nil
+    }
+
+    private func handleStartupAckTimeoutIfNeeded() {
+        guard isRequestInFlight else { return }
+        guard !hasSeenRecordingInCurrentRequest else { return }
+
+        guard phase == .recording || phase == .processing else {
+            clearRequestTracking()
+            return
+        }
+
+        let elapsed = Date().timeIntervalSince(requestStartedAt ?? Date())
+        guard elapsed >= Constants.Keyboard.startupAckTimeout else { return }
+
+        sendCommand(.cancel)
+        clearRequestTracking()
+        phase = .error("后台启动超时，请重试")
+        statusMessage = "后台启动超时，请重试"
+        scheduleReset()
     }
 
     private func handleRequestTimeoutIfNeeded() {
@@ -325,7 +402,7 @@ final class KeyboardState {
         let elapsed = Date().timeIntervalSince(requestStartedAt ?? Date())
         guard elapsed >= Constants.Keyboard.resultTimeout else { return }
 
-        _ = sendCommand(.cancel)
+        sendCommand(.cancel)
         clearRequestTracking()
         phase = .error("后台录音超时，请打开主程序")
         statusMessage = "后台录音超时，请打开主程序"
@@ -334,10 +411,17 @@ final class KeyboardState {
 
     // MARK: - Permission checks
 
-    private func checkFullAccess() -> Bool {
-        let defaults = AppGroup.sharedDefaults
-        defaults.set(true, forKey: "vox.keyboard.accessCheck")
-        return defaults.synchronize()
+    private func probeFullAccessAsync() {
+        ipcQueue.async { [weak self] in
+            let probeKey = "vox.keyboard.accessCheck"
+            let defaults = AppGroup.sharedDefaults
+            defaults.set(true, forKey: probeKey)
+            let hasAccess = defaults.object(forKey: probeKey) != nil
+
+            Task { @MainActor [weak self] in
+                self?.hasFullAccess = hasAccess
+            }
+        }
     }
 
     private func checkMicPermission() -> Bool {

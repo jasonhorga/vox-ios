@@ -118,6 +118,8 @@ enum Constants {
         static let ipcPollInterval: TimeInterval = 0.20
         /// 键盘等待后台守护进程返回结果超时（秒）
         static let resultTimeout: TimeInterval = 10.0
+        /// 键盘等待守护进程启动确认超时（秒）
+        static let startupAckTimeout: TimeInterval = 2.0
         
         /// 根据屏幕高度和安全区域动态计算键盘高度
         /// - Parameters:

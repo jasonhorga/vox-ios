@@ -24,14 +24,21 @@ private enum DaemonCommand: String {
     case cancel
 }
 
+private struct CommandSnapshot {
+    let id: Int
+    let command: DaemonCommand
+    let commandAt: TimeInterval
+}
+
 @MainActor
 final class AudioDaemonService {
 
-    private let defaults = AppGroup.sharedDefaults
     private let config = ConfigStore.shared
     private let recorder = DaemonAudioEngineRecorder()
     private let silentKeeper = SilentAudioKeeper()
     private let networkMonitor = NetworkMonitor()
+
+    private let ipcQueue = DispatchQueue(label: "com.jasonhorga.vox.daemon.ipc", qos: .userInitiated)
 
     private var pollTimer: Timer?
     private var heartbeatTimer: Timer?
@@ -41,6 +48,7 @@ final class AudioDaemonService {
     private var state: DaemonState = .idle
 
     private var processingTask: Task<Void, Never>?
+    private var wakeObserver: DarwinNotificationObserver?
 
     /// 标记守护进程是否已初始化
     private(set) var isStarted = false
@@ -66,22 +74,21 @@ final class AudioDaemonService {
         }
 
         // 避免重启后重复执行旧命令
-        lastCommandID = defaults.integer(forKey: AppGroup.ipcCommandIDKey)
+        bootstrapLastCommandID()
 
+        setupDarwinWakeObserver()
         observeLifecycleNotifications()
         publishState(.idle, clearError: true)
 
         pollTimer = Timer.scheduledTimer(withTimeInterval: Constants.Daemon.commandPollInterval, repeats: true) { [weak self] _ in
+            self?.pollCommandIfNeeded()
             Task { @MainActor [weak self] in
-                self?.pollCommandIfNeeded()
                 self?.checkIdleSleepIfNeeded()
             }
         }
 
         heartbeatTimer = Timer.scheduledTimer(withTimeInterval: Constants.Daemon.heartbeatInterval, repeats: true) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                self?.writeHeartbeat()
-            }
+            self?.writeHeartbeat()
         }
 
         writeHeartbeat()
@@ -99,6 +106,9 @@ final class AudioDaemonService {
         processingTask?.cancel()
         processingTask = nil
 
+        wakeObserver?.stop()
+        wakeObserver = nil
+
         recorder.cancel()
         stopSilentKeeperAndReleaseSession()
 
@@ -107,32 +117,73 @@ final class AudioDaemonService {
         SharedLogger.info("AudioDaemonService stopped")
     }
 
+    // MARK: - Darwin Wake Observer
+
+    private func setupDarwinWakeObserver() {
+        wakeObserver = DarwinNotificationObserver(name: .wakeUpAndRecord) { [weak self] in
+            Task { @MainActor [weak self] in
+                self?.handleWakeFromKeyboard()
+            }
+        }
+        wakeObserver?.start()
+        SharedLogger.info("Darwin wake observer started")
+    }
+
+    private func handleWakeFromKeyboard() {
+        touchActivity()
+        if state == .sleeping || state == .dead {
+            publishState(.idle, clearError: true)
+        }
+    }
+
     // MARK: - IPC Polling
 
-    private func pollCommandIfNeeded() {
-        let commandID = defaults.integer(forKey: AppGroup.ipcCommandIDKey)
-        guard commandID > 0, commandID != lastCommandID else { return }
+    private func bootstrapLastCommandID() {
+        ipcQueue.async { [weak self] in
+            guard let self else { return }
+            let existing = AppGroup.sharedDefaults.integer(forKey: AppGroup.ipcCommandIDKey)
+            Task { @MainActor [weak self] in
+                self?.lastCommandID = existing
+            }
+        }
+    }
 
-        let commandAt = defaults.double(forKey: AppGroup.ipcCommandAtKey)
-        if commandAt > 0 {
-            let age = Date().timeIntervalSince1970 - commandAt
+    private func pollCommandIfNeeded() {
+        ipcQueue.async { [weak self] in
+            guard let self else { return }
+            let defaults = AppGroup.sharedDefaults
+            let commandID = defaults.integer(forKey: AppGroup.ipcCommandIDKey)
+            guard commandID > 0 else { return }
+
+            guard let commandRaw = defaults.string(forKey: AppGroup.ipcCommandKey),
+                  let command = DaemonCommand(rawValue: commandRaw)
+            else { return }
+
+            let commandAt = defaults.double(forKey: AppGroup.ipcCommandAtKey)
+            let snapshot = CommandSnapshot(id: commandID, command: command, commandAt: commandAt)
+
+            Task { @MainActor [weak self] in
+                self?.applyCommandSnapshot(snapshot)
+            }
+        }
+    }
+
+    private func applyCommandSnapshot(_ snapshot: CommandSnapshot) {
+        guard snapshot.id != lastCommandID else { return }
+
+        if snapshot.commandAt > 0 {
+            let age = Date().timeIntervalSince1970 - snapshot.commandAt
             // 忽略超过 15 秒的陈旧指令，防止崩溃重启后误触发
-            guard age <= 15 else {
-                lastCommandID = commandID
+            if age > 15 {
+                lastCommandID = snapshot.id
                 return
             }
         }
 
-        lastCommandID = commandID
-        guard let commandRaw = defaults.string(forKey: AppGroup.ipcCommandKey),
-              let command = DaemonCommand(rawValue: commandRaw)
-        else {
-            return
-        }
-
+        lastCommandID = snapshot.id
         touchActivity()
 
-        switch command {
+        switch snapshot.command {
         case .start:
             handleStartCommand()
         case .stop:
@@ -162,7 +213,7 @@ final class AudioDaemonService {
             SharedLogger.info("daemon start recording")
             stopSilentKeeperIfRunning(trigger: "recording-started")
         } catch {
-            // 任何失败都先落盘 error，确保键盘侧不会无限等待
+            // 任何失败都立刻落盘 error 并广播，确保键盘侧不会无限等待
             publishError("录音启动失败: \(error.localizedDescription)")
             reevaluateSilentKeeper(trigger: "start-failed")
         }
@@ -192,8 +243,9 @@ final class AudioDaemonService {
         processingTask?.cancel()
         processingTask = nil
 
-        defaults.removeObject(forKey: AppGroup.ipcResultKey)
-        defaults.synchronize()
+        ipcQueue.async {
+            AppGroup.sharedDefaults.removeObject(forKey: AppGroup.ipcResultKey)
+        }
 
         publishState(.idle, clearError: true)
         touchActivity()
@@ -350,24 +402,32 @@ final class AudioDaemonService {
 
     private func touchActivity() {
         lastActivityAt = Date()
-        defaults.set(lastActivityAt.timeIntervalSince1970, forKey: AppGroup.ipcLastActiveAtKey)
-        defaults.synchronize()
+        let ts = lastActivityAt.timeIntervalSince1970
+        ipcQueue.async {
+            AppGroup.sharedDefaults.set(ts, forKey: AppGroup.ipcLastActiveAtKey)
+        }
     }
 
     private func writeHeartbeat() {
-        defaults.set(Date().timeIntervalSince1970, forKey: AppGroup.ipcHeartbeatKey)
-        defaults.synchronize()
+        let ts = Date().timeIntervalSince1970
+        ipcQueue.async {
+            AppGroup.sharedDefaults.set(ts, forKey: AppGroup.ipcHeartbeatKey)
+        }
     }
 
     // MARK: - IPC Write Helpers
 
     private func publishState(_ newState: DaemonState, clearError: Bool) {
         state = newState
-        defaults.set(newState.rawValue, forKey: AppGroup.ipcStateKey)
-        if clearError {
-            defaults.removeObject(forKey: AppGroup.ipcErrorKey)
+
+        ipcQueue.async {
+            let defaults = AppGroup.sharedDefaults
+            defaults.set(newState.rawValue, forKey: AppGroup.ipcStateKey)
+            if clearError {
+                defaults.removeObject(forKey: AppGroup.ipcErrorKey)
+            }
+            AppGroupDarwinNotification.daemonStateDidChange.post()
         }
-        defaults.synchronize()
 
         if newState == .idle || newState == .recording || newState == .processing {
             touchActivity()
@@ -376,16 +436,24 @@ final class AudioDaemonService {
 
     private func publishError(_ message: String) {
         state = .error
-        defaults.set(DaemonState.error.rawValue, forKey: AppGroup.ipcStateKey)
-        defaults.set(message, forKey: AppGroup.ipcErrorKey)
-        defaults.synchronize()
+
+        ipcQueue.async {
+            let defaults = AppGroup.sharedDefaults
+            defaults.set(DaemonState.error.rawValue, forKey: AppGroup.ipcStateKey)
+            defaults.set(message, forKey: AppGroup.ipcErrorKey)
+            AppGroupDarwinNotification.daemonStateDidChange.post()
+        }
+
         SharedLogger.error(message)
     }
 
     private func publishResult(_ text: String) {
-        let nextID = defaults.integer(forKey: AppGroup.ipcResultIDKey) + 1
-        defaults.set(text, forKey: AppGroup.ipcResultKey)
-        defaults.set(nextID, forKey: AppGroup.ipcResultIDKey)
-        defaults.synchronize()
+        ipcQueue.async {
+            let defaults = AppGroup.sharedDefaults
+            let nextID = defaults.integer(forKey: AppGroup.ipcResultIDKey) + 1
+            defaults.set(text, forKey: AppGroup.ipcResultKey)
+            defaults.set(nextID, forKey: AppGroup.ipcResultIDKey)
+            AppGroupDarwinNotification.daemonStateDidChange.post()
+        }
     }
 }
