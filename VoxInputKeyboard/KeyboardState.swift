@@ -94,6 +94,8 @@ final class KeyboardState {
     /// 开始录音
     /// - Parameter proxy: UITextDocumentProxy，用于后续文字注入
     func startRecording() {
+        config.reload()
+        
         guard phase == .idle else { return }
         guard !isSecureInput else {
             phase = .error("密码输入框不支持语音输入")

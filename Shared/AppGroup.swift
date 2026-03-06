@@ -12,9 +12,6 @@ enum AppGroup {
     /// App Group 标识符
     static let identifier = "group.com.jasonhorga.vox"
     
-    /// Keychain Access Group（用于跨 Target 共享密钥）
-    static let keychainAccessGroup = "com.jasonhorga.vox.shared"
-    
     /// 键盘扩展 Bundle ID
     static let keyboardBundleID = "com.jasonhorga.vox.keyboard"
     

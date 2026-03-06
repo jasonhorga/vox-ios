@@ -193,12 +193,42 @@ final class SharedConfigStore {
     
     // MARK: - 私有方法
     
+    /// 从 App Group UserDefaults 和 Keychain 强制重载所有配置
+    /// 用于确保跨进程（主 App ↔ 键盘扩展）读取最新数据
+    func reload() {
+        asrProvider = ASRProviderType(
+            rawValue: defaults.string(forKey: Key.asrProvider.rawValue) ?? ""
+        ) ?? .qwen
+        
+        whisperBaseURL = defaults.string(forKey: Key.whisperBaseURL.rawValue)
+            ?? Constants.Network.whisperDefaultURL
+        
+        whisperModel = defaults.string(forKey: Key.whisperModel.rawValue)
+            ?? "whisper-1"
+        
+        qwenModel = defaults.string(forKey: Key.qwenModel.rawValue)
+            ?? "qwen-omni-turbo"
+        
+        hasCompletedSetup = defaults.bool(forKey: Key.hasCompletedSetup.rawValue)
+        
+        language = defaults.string(forKey: Key.language.rawValue) ?? "auto"
+        
+        translationMode = TranslationMode(
+            rawValue: defaults.string(forKey: Key.translationMode.rawValue) ?? ""
+        ) ?? .none
+        
+        qwenAPIKey = KeychainStore.read(key: .qwenAPIKey) ?? ""
+        whisperAPIKey = KeychainStore.read(key: .whisperAPIKey) ?? ""
+    }
+    
     private func saveString(_ value: String, forKey key: Key) {
         defaults.set(value, forKey: key.rawValue)
+        defaults.synchronize()
     }
     
     private func saveBool(_ value: Bool, forKey key: Key) {
         defaults.set(value, forKey: key.rawValue)
+        defaults.synchronize()
     }
     
     /// 重置所有配置为默认值
