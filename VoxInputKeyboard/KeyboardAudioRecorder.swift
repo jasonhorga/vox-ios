@@ -3,15 +3,17 @@
 //
 // 键盘扩展专用录音器
 // 与主 App AudioRecorder 的关键区别：
-//   - AVAudioSession 使用 .playAndRecord + .mixWithOthers（不中断宿主 App 音频）
-//   - 更严格的内存控制
+//   - AVAudioSession 在 extension 场景下做更保守的 fallback
+//   - 录音路径优先 App Group，并显式验证可写
 //   - 无 Observation 依赖（通过回调通知状态）
 
 import AVFoundation
 import Foundation
+import os.log
+
+private let log = OSLog(subsystem: "com.jasonhorga.vox.keyboard", category: "KeyboardAudioRecorder")
 
 /// 键盘扩展专用录音管理器
-/// 使用 .playAndRecord + .mixWithOthers 模式，避免中断宿主 App 音频
 final class KeyboardAudioRecorder: NSObject {
     
     // MARK: - 状态
@@ -37,17 +39,6 @@ final class KeyboardAudioRecorder: NSObject {
     private var recordingURL: URL?
     private let silenceDetector = SilenceDetector()
     
-    /// 临时录音文件 URL
-    private var tempRecordingURL: URL {
-        // 优先使用 App Group 共享容器，回退到系统 temp
-        let dir = AppGroup.tempDirectory ?? FileManager.default.temporaryDirectory
-        
-        // 确保目录存在
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        
-        return dir.appendingPathComponent(Constants.Audio.tempFileName)
-    }
-    
     // MARK: - 稳定性常量
     
     /// 最长录音时间（秒），超时自动停止
@@ -71,6 +62,13 @@ final class KeyboardAudioRecorder: NSObject {
     /// - Throws: VoxError 如果 AudioSession 配置或录音启动失败
     func start() throws {
         retryCount = 0
+
+        let permission = AVAudioSession.sharedInstance().recordPermission
+        os_log("start recording, permission=%{public}@", log: log, type: .info, String(describing: permission))
+        guard permission == .granted else {
+            throw VoxError.microphonePermissionDenied
+        }
+
         try attemptStart()
     }
     
@@ -83,6 +81,7 @@ final class KeyboardAudioRecorder: NSObject {
         do {
             try configureAudioSessionForKeyboardRecording(session)
         } catch {
+            os_log("AudioSession configure failed: %{public}@", log: log, type: .error, error.localizedDescription)
             if retryCount < Self.maxRetryCount {
                 retryCount += 1
                 try attemptStart()
@@ -91,80 +90,101 @@ final class KeyboardAudioRecorder: NSObject {
             throw VoxError.recordingFailed("AudioSession 配置失败: \(error.localizedDescription)")
         }
 
-        // 录音参数：与主 App 一致 16kHz / 16bit / Mono / WAV
-        let settings: [String: Any] = [
-            AVFormatIDKey: Int(kAudioFormatLinearPCM),
-            AVSampleRateKey: Constants.Audio.sampleRate,
-            AVNumberOfChannelsKey: Constants.Audio.channels,
-            AVLinearPCMBitDepthKey: Constants.Audio.bitDepth,
-            AVLinearPCMIsFloatKey: false,
-            AVLinearPCMIsBigEndianKey: false,
-            AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue
+        let url = try prepareWritableRecordingURL()
+
+        // 候选参数：先 16k PCM（与现有 ASR 协议一致），再 44.1k PCM 兜底。
+        let settingsCandidates: [[String: Any]] = [
+            [
+                AVFormatIDKey: Int(kAudioFormatLinearPCM),
+                AVSampleRateKey: Constants.Audio.sampleRate,
+                AVNumberOfChannelsKey: Constants.Audio.channels,
+                AVLinearPCMBitDepthKey: Constants.Audio.bitDepth,
+                AVLinearPCMIsFloatKey: false,
+                AVLinearPCMIsBigEndianKey: false,
+                AVLinearPCMIsNonInterleaved: false
+            ],
+            [
+                AVFormatIDKey: Int(kAudioFormatLinearPCM),
+                AVSampleRateKey: 44_100.0,
+                AVNumberOfChannelsKey: Constants.Audio.channels,
+                AVLinearPCMBitDepthKey: Constants.Audio.bitDepth,
+                AVLinearPCMIsFloatKey: false,
+                AVLinearPCMIsBigEndianKey: false,
+                AVLinearPCMIsNonInterleaved: false
+            ]
         ]
 
-        let url = tempRecordingURL
+        var lastStartError: String = "unknown"
 
-        do {
-            let recorder = try AVAudioRecorder(url: url, settings: settings)
-            recorder.delegate = self
-            recorder.isMeteringEnabled = true
-            recorder.prepareToRecord()
+        for (idx, settings) in settingsCandidates.enumerated() {
+            do {
+                let recorder = try AVAudioRecorder(url: url, settings: settings)
+                recorder.delegate = self
+                recorder.isMeteringEnabled = true
 
-            guard recorder.record() else {
-                if retryCount < Self.maxRetryCount {
-                    retryCount += 1
-                    try attemptStart()
-                    return
+                guard recorder.prepareToRecord() else {
+                    lastStartError = "prepareToRecord returned false (candidate=\(idx))"
+                    os_log("%{public}@", log: log, type: .error, lastStartError)
+                    continue
                 }
-                throw VoxError.recordingFailed("录音启动失败: AVAudioRecorder.record() returned false")
-            }
 
-            self.audioRecorder = recorder
-            self.recordingURL = url
-            self.isRecording = true
-            self.silenceDetector.reset()
+                guard recorder.record() else {
+                    let snapshot = sessionSnapshot(session)
+                    lastStartError = "record() returned false (candidate=\(idx), \(snapshot))"
+                    os_log("%{public}@", log: log, type: .error, lastStartError)
+                    continue
+                }
 
-            startMeterTimer()
-            startTimeoutTimer()
+                self.audioRecorder = recorder
+                self.recordingURL = url
+                self.isRecording = true
+                self.silenceDetector.reset()
 
-        } catch let error as VoxError {
-            throw error
-        } catch {
-            if retryCount < Self.maxRetryCount {
-                retryCount += 1
-                try attemptStart()
+                os_log("recording started: %{public}@", log: log, type: .info, url.path)
+                startMeterTimer()
+                startTimeoutTimer()
                 return
+            } catch {
+                lastStartError = "init/record error (candidate=\(idx)): \(error.localizedDescription)"
+                os_log("%{public}@", log: log, type: .error, lastStartError)
             }
-            throw VoxError.recordingFailed("录音启动失败: \(error.localizedDescription)")
         }
+
+        if retryCount < Self.maxRetryCount {
+            retryCount += 1
+            try attemptStart()
+            return
+        }
+
+        throw VoxError.recordingFailed(lastStartError)
     }
 
     /// 键盘扩展录音会话配置（带 fallback）
-    /// 说明：Keyboard Extension 环境对 category / option 更敏感，
-    /// 先尝试 .record + .measurement，失败后再回退到最保守配置。
+    /// 说明：优先 .record，失败后回退到 .playAndRecord + mixWithOthers
     private func configureAudioSessionForKeyboardRecording(_ session: AVAudioSession) throws {
         do {
             try session.setCategory(.record, mode: .measurement, options: [])
+            try? session.setPreferredSampleRate(Constants.Audio.sampleRate)
+            try? session.setPreferredInputNumberOfChannels(Constants.Audio.channels)
             try session.setActive(true, options: [])
+            os_log("AudioSession active with .record/.measurement", log: log, type: .info)
             return
         } catch {
-            // fallback：先停用，再尝试兼容性更高的一组 options
-            try? session.setActive(false, options: .notifyOthersOnDeactivation)
+            os_log(".record failed, fallback to .playAndRecord: %{public}@", log: log, type: .default, error.localizedDescription)
+        }
 
-            do {
-                try session.setCategory(
-                    .playAndRecord,
-                    mode: .measurement,
-                    options: [.mixWithOthers, .defaultToSpeaker, .allowBluetooth]
-                )
-                try session.setActive(true, options: [])
-                return
-            } catch {
-                throw VoxError.recordingFailed("AudioSession 激活失败: \(error.localizedDescription)")
-            }
+        do {
+            try? session.setActive(false, options: .notifyOthersOnDeactivation)
+            try session.setCategory(.playAndRecord, mode: .measurement, options: [.mixWithOthers])
+            try? session.setPreferredSampleRate(Constants.Audio.sampleRate)
+            try? session.setPreferredInputNumberOfChannels(Constants.Audio.channels)
+            try session.setActive(true, options: [])
+            os_log("AudioSession active with fallback .playAndRecord", log: log, type: .info)
+        } catch {
+            throw VoxError.recordingFailed("AudioSession 激活失败: \(error.localizedDescription)")
         }
     }
-    
+
     /// 停止录音并返回音频文件 URL
     /// - Returns: 有效的录音文件 URL
     /// - Throws: VoxError 如果录音无效
@@ -213,6 +233,49 @@ final class KeyboardAudioRecorder: NSObject {
         isRecording = false
         cleanupTempFile()
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+    }
+
+    // MARK: - 录音路径
+
+    /// 获取可写录音路径。优先 App Group tmp，失败回退系统 tmp。
+    private func prepareWritableRecordingURL() throws -> URL {
+        let fileManager = FileManager.default
+
+        var candidates: [URL] = []
+        if let groupTmp = AppGroup.tempDirectory {
+            candidates.append(groupTmp)
+        }
+        candidates.append(fileManager.temporaryDirectory)
+
+        var errors: [String] = []
+
+        for dir in candidates {
+            do {
+                try fileManager.createDirectory(at: dir, withIntermediateDirectories: true)
+
+                // 用探针文件验证可写性（比 isWritableFile 更可靠）
+                let probeURL = dir.appendingPathComponent(".vox_write_probe")
+                try Data("ok".utf8).write(to: probeURL, options: .atomic)
+                try? fileManager.removeItem(at: probeURL)
+
+                let url = dir.appendingPathComponent(Constants.Audio.tempFileName)
+                try? fileManager.removeItem(at: url) // 防止残留旧文件
+                os_log("recording dir selected: %{public}@", log: log, type: .info, dir.path)
+                return url
+            } catch {
+                errors.append("\(dir.path): \(error.localizedDescription)")
+            }
+        }
+
+        throw VoxError.recordingFailed("无可写录音目录: \(errors.joined(separator: " | "))")
+    }
+
+    private func sessionSnapshot(_ session: AVAudioSession) -> String {
+        let category = session.category.rawValue
+        let mode = session.mode.rawValue
+        let inputCount = session.currentRoute.inputs.count
+        let outputCount = session.currentRoute.outputs.count
+        return "category=\(category), mode=\(mode), routeIn=\(inputCount), routeOut=\(outputCount)"
     }
     
     // MARK: - 电平采样
