@@ -40,6 +40,9 @@ final class KeyboardAudioRecorder: NSObject {
     private var recordingURL: URL?
     private let silenceDetector = SilenceDetector()
 
+    /// 音频会话串行队列（避免主线程阻塞和并发 setActive 竞争）
+    private let audioSessionQueue = DispatchQueue(label: "com.jasonhorga.vox.keyboard.audio-session", qos: .userInitiated)
+
     /// 录音后端（AVAudioRecorder 或 AVAudioEngine）
     private enum ActiveBackend {
         case none
@@ -61,6 +64,12 @@ final class KeyboardAudioRecorder: NSObject {
 
     /// 录音失败最大重试次数
     private static let maxRetryCount: Int = 2
+
+    /// AudioSession 激活重试延迟（微秒）
+    private static let activationRetryDelaysUs: [UInt32] = [0, 20_000, 80_000, 180_000]
+
+    /// AVAudioEngine 启动前重试延迟（微秒）
+    private static let engineStartDelaysUs: [UInt32] = [0, 50_000, 120_000]
 
     /// 超时自动停止回调
     var onMaxDurationReached: (() -> Void)?
@@ -114,7 +123,7 @@ final class KeyboardAudioRecorder: NSObject {
 
             // AVAudioRecorder 在部分键盘扩展场景会持续 record() false，回退到 AVAudioEngine
             os_log("AVAudioRecorder failed on all candidates, fallback to AVAudioEngine", log: log, type: .default)
-            try startWithAVAudioEngine(url: url)
+            try startWithAVAudioEngine(url: url, session: session)
             return
         } catch {
             if retryCount < Self.maxRetryCount {
@@ -160,7 +169,7 @@ final class KeyboardAudioRecorder: NSObject {
                 recorder.isMeteringEnabled = true
 
                 guard recorder.prepareToRecord() else {
-                    lastStartError = "prepareToRecord returned false (candidate=\(idx))"
+                    lastStartError = "prepareToRecord returned false (candidate=\(idx), \(sessionSnapshot(session)))"
                     os_log("%{public}@", log: log, type: .error, lastStartError)
                     continue
                 }
@@ -184,7 +193,7 @@ final class KeyboardAudioRecorder: NSObject {
                 startTimeoutTimer()
                 return true
             } catch {
-                lastStartError = "init/record error (candidate=\(idx)): \(error.localizedDescription)"
+                lastStartError = "init/record error (candidate=\(idx)): \(describeError(error)), \(sessionSnapshot(session))"
                 os_log("%{public}@", log: log, type: .error, lastStartError)
             }
         }
@@ -194,7 +203,7 @@ final class KeyboardAudioRecorder: NSObject {
     }
 
     /// AVAudioEngine fallback 启动（用于规避键盘扩展下 AVAudioRecorder.record() 返回 false）
-    private func startWithAVAudioEngine(url: URL) throws {
+    private func startWithAVAudioEngine(url: URL, session: AVAudioSession) throws {
         // 先清理旧 tap / 状态
         audioEngine.stop()
         if engineTapInstalled {
@@ -225,62 +234,129 @@ final class KeyboardAudioRecorder: NSObject {
             do {
                 try file.write(from: buffer)
             } catch {
-                os_log("AVAudioEngine write failed: %{public}@", log: log, type: .error, error.localizedDescription)
+                os_log("AVAudioEngine write failed: %{public}@", log: log, type: .error, self.describeError(error))
             }
         }
 
         engineTapInstalled = true
+        audioEngine.prepare()
 
-        do {
-            try audioEngine.start()
-        } catch {
-            if engineTapInstalled {
-                inputNode.removeTap(onBus: 0)
-                engineTapInstalled = false
+        var startError: Error?
+        for delay in Self.engineStartDelaysUs {
+            if delay > 0 { usleep(delay) }
+
+            do {
+                // 终极兜底：在音频队列中再次激活 session（规避 kAudioSessionNotActive / 'what'）
+                try runOnAudioSessionQueue {
+                    try session.setActive(true, options: [])
+                }
+                try audioEngine.start()
+
+                self.audioRecorder = nil
+                self.recordingURL = url
+                self.activeBackend = .engine
+                self.isRecording = true
+                self.silenceDetector.reset()
+
+                os_log("recording started by AVAudioEngine: %{public}@", log: log, type: .info, url.path)
+                startMeterTimer()
+                startTimeoutTimer()
+                return
+            } catch {
+                startError = error
+                os_log(
+                    "AVAudioEngine start retry failed: delayUs=%{public}u error=%{public}@ snapshot=%{public}@",
+                    log: log,
+                    type: .error,
+                    delay,
+                    describeError(error),
+                    sessionSnapshot(session)
+                )
             }
-            audioFile = nil
-            throw VoxError.recordingFailed("AVAudioEngine 启动失败: \(error.localizedDescription)")
         }
 
-        self.audioRecorder = nil
-        self.recordingURL = url
-        self.activeBackend = .engine
-        self.isRecording = true
-        self.silenceDetector.reset()
+        if engineTapInstalled {
+            inputNode.removeTap(onBus: 0)
+            engineTapInstalled = false
+        }
+        audioFile = nil
 
-        os_log("recording started by AVAudioEngine: %{public}@", log: log, type: .info, url.path)
-        startMeterTimer()
-        startTimeoutTimer()
+        throw VoxError.recordingFailed("AVAudioEngine 启动失败: \(describeError(startError ?? NSError(domain: "AVAudioEngine", code: -1))) | \(sessionSnapshot(session))")
     }
 
     /// 键盘扩展录音会话配置（带多档 fallback）
     private func configureAudioSessionForKeyboardRecording(_ session: AVAudioSession) throws {
         // 实测：键盘扩展中 .record/.measurement 可能路由存在但 record() 仍 false。
-        // 优先尝试 .playAndRecord/.default + mixWithOthers。
+        // 优先尝试 .playAndRecord/.default + mixWithOthers，再尝试更激进/保守组合。
         let candidates: [(AVAudioSession.Category, AVAudioSession.Mode, AVAudioSession.CategoryOptions)] = [
             (.playAndRecord, .default, [.mixWithOthers]),
+            (.playAndRecord, .measurement, [.mixWithOthers]),
             (.record, .measurement, []),
-            (.playAndRecord, .measurement, [.mixWithOthers])
+            (.record, .default, [])
         ]
 
         var lastError: Error?
 
         for (idx, candidate) in candidates.enumerated() {
             do {
-                try? session.setActive(false, options: .notifyOthersOnDeactivation)
-                try session.setCategory(candidate.0, mode: candidate.1, options: candidate.2)
-                try? session.setPreferredSampleRate(Constants.Audio.sampleRate)
-                try? session.setPreferredInputNumberOfChannels(Constants.Audio.channels)
-                try session.setActive(true, options: [])
-                os_log("AudioSession active candidate=%{public}d category=%{public}@ mode=%{public}@", log: log, type: .info, idx, candidate.0.rawValue, candidate.1.rawValue)
+                try runOnAudioSessionQueue {
+                    // 先清理旧状态，避免上一个宿主/会话残留
+                    try? session.setActive(false, options: .notifyOthersOnDeactivation)
+                    try session.setCategory(candidate.0, mode: candidate.1, options: candidate.2)
+                    try? session.setPreferredSampleRate(Constants.Audio.sampleRate)
+                    try? session.setPreferredInputNumberOfChannels(Constants.Audio.channels)
+                    try? session.setPreferredIOBufferDuration(0.01)
+
+                    var activateError: Error?
+                    for delay in Self.activationRetryDelaysUs {
+                        if delay > 0 { usleep(delay) }
+                        do {
+                            try session.setActive(true, options: [])
+                            activateError = nil
+                            break
+                        } catch {
+                            activateError = error
+                            os_log(
+                                "AudioSession activate retry failed: candidate=%{public}d delayUs=%{public}u error=%{public}@ snapshot=%{public}@",
+                                log: log,
+                                type: .default,
+                                idx,
+                                delay,
+                                describeError(error),
+                                sessionSnapshot(session)
+                            )
+                        }
+                    }
+
+                    if let activateError {
+                        throw activateError
+                    }
+                }
+
+                os_log(
+                    "AudioSession active candidate=%{public}d category=%{public}@ mode=%{public}@ snapshot=%{public}@",
+                    log: log,
+                    type: .info,
+                    idx,
+                    candidate.0.rawValue,
+                    candidate.1.rawValue,
+                    sessionSnapshot(session)
+                )
                 return
             } catch {
                 lastError = error
-                os_log("AudioSession candidate=%{public}d failed: %{public}@", log: log, type: .default, idx, error.localizedDescription)
+                os_log(
+                    "AudioSession candidate=%{public}d failed: %{public}@ snapshot=%{public}@",
+                    log: log,
+                    type: .error,
+                    idx,
+                    describeError(error),
+                    sessionSnapshot(session)
+                )
             }
         }
 
-        throw VoxError.recordingFailed("AudioSession 激活失败: \(lastError?.localizedDescription ?? "unknown")")
+        throw VoxError.recordingFailed("AudioSession 激活失败: \(describeError(lastError ?? NSError(domain: "AVAudioSession", code: -1))) | \(sessionSnapshot(session))")
     }
 
     /// 停止录音并返回音频文件 URL
@@ -316,7 +392,9 @@ final class KeyboardAudioRecorder: NSObject {
         self.isRecording = false
 
         // 释放 AudioSession（通知宿主 App 恢复音频）
-        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        try? runOnAudioSessionQueue {
+            try AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        }
 
         guard let url = recordingURL else {
             throw VoxError.audioFileInvalid
@@ -362,7 +440,9 @@ final class KeyboardAudioRecorder: NSObject {
         activeBackend = .none
         isRecording = false
         cleanupTempFile()
-        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        try? runOnAudioSessionQueue {
+            try AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        }
     }
 
     // MARK: - 录音路径
@@ -400,12 +480,74 @@ final class KeyboardAudioRecorder: NSObject {
         throw VoxError.recordingFailed("无可写录音目录: \(errors.joined(separator: " | "))")
     }
 
+    private func runOnAudioSessionQueue<T>(_ block: () throws -> T) throws -> T {
+        if DispatchQueue.getSpecific(key: Self.audioSessionSpecificKey) != nil {
+            return try block()
+        }
+
+        var output: Result<T, Error>!
+        audioSessionQueue.sync {
+            output = Result { try block() }
+        }
+        return try output.get()
+    }
+
+    private static let audioSessionSpecificKey = DispatchSpecificKey<UInt8>()
+
+    override init() {
+        super.init()
+        audioSessionQueue.setSpecific(key: Self.audioSessionSpecificKey, value: 1)
+    }
+
     private func sessionSnapshot(_ session: AVAudioSession) -> String {
         let category = session.category.rawValue
         let mode = session.mode.rawValue
-        let inputCount = session.currentRoute.inputs.count
-        let outputCount = session.currentRoute.outputs.count
-        return "category=\(category), mode=\(mode), routeIn=\(inputCount), routeOut=\(outputCount)"
+        let sampleRate = String(format: "%.1f", session.sampleRate)
+        let preferredSampleRate = String(format: "%.1f", session.preferredSampleRate)
+        let ioBuffer = String(format: "%.4f", session.ioBufferDuration)
+        let preferredIOBuffer = String(format: "%.4f", session.preferredIOBufferDuration)
+        let inputAvailable = session.isInputAvailable
+        let otherAudioPlaying = session.isOtherAudioPlaying
+
+        let routeInputs = session.currentRoute.inputs
+            .map { "\($0.portType.rawValue):\($0.portName)" }
+            .joined(separator: ",")
+        let routeOutputs = session.currentRoute.outputs
+            .map { "\($0.portType.rawValue):\($0.portName)" }
+            .joined(separator: ",")
+
+        let availableInputs = (session.availableInputs ?? [])
+            .map { "\($0.portType.rawValue):\($0.portName)" }
+            .joined(separator: ",")
+
+        return "category=\(category), mode=\(mode), sampleRate=\(sampleRate), prefSampleRate=\(preferredSampleRate), ioBuf=\(ioBuffer), prefIoBuf=\(preferredIOBuffer), inputAvailable=\(inputAvailable), otherAudioPlaying=\(otherAudioPlaying), routeIn=[\(routeInputs)], routeOut=[\(routeOutputs)], availableInputs=[\(availableInputs)]"
+    }
+
+    private func describeError(_ error: Error) -> String {
+        let nsError = error as NSError
+        let fourCC = fourCCString(for: nsError.code)
+        return "domain=\(nsError.domain), code=\(nsError.code), fourCC=\(fourCC), desc=\(nsError.localizedDescription)"
+    }
+
+    /// 将可能的 OSStatus code 转为 fourCC（例如 2003329396 -> 'what'）
+    private func fourCCString(for code: Int) -> String {
+        guard code >= Int(Int32.min), code <= Int(Int32.max) else {
+            return "n/a"
+        }
+
+        let u = UInt32(bitPattern: Int32(code))
+        let chars: [CChar] = [
+            CChar((u >> 24) & 0xff),
+            CChar((u >> 16) & 0xff),
+            CChar((u >> 8) & 0xff),
+            CChar(u & 0xff),
+            0
+        ]
+
+        if chars.prefix(4).allSatisfy({ $0 >= 32 && $0 <= 126 }) {
+            return String(cString: chars)
+        }
+        return "n/a"
     }
 
     // MARK: - 电平采样
