@@ -46,6 +46,7 @@ targets:
           ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
           INFOPLIST_KEY_CFBundleIconName: AppIcon
           CODE_SIGN_STYLE: Manual
+          CODE_SIGN_IDENTITY: "Apple Distribution"
           DEVELOPMENT_TEAM: "6HB84897DJ"
           PROVISIONING_PROFILE_SPECIFIER: "match AppStore com.jasonhorga.vox"
     info:
@@ -119,6 +120,7 @@ targets:
       configs:
         Release:
           CODE_SIGN_STYLE: Manual
+          CODE_SIGN_IDENTITY: "Apple Distribution"
           DEVELOPMENT_TEAM: "6HB84897DJ"
           PROVISIONING_PROFILE_SPECIFIER: "match AppStore com.jasonhorga.vox.keyboard"
     info:
