@@ -134,9 +134,10 @@ class KeyboardViewController: UIInputViewController {
     
     /// 检查权限环境并更新状态
     private func checkEnvironment() {
+        let systemFullAccess = self.hasFullAccess
         Task { @MainActor in
             // 检查权限环境（Full Access + 麦克风）
-            keyboardState.checkEnvironment()
+            keyboardState.checkEnvironment(systemHasFullAccess: systemFullAccess)
             
             // 检查密码输入框
             keyboardState.updateSecureInputState(textDocumentProxy.isSecureTextEntry ?? false)

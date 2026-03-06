@@ -66,10 +66,13 @@ final class KeyboardState {
     // MARK: - 状态更新
     
     /// 检查环境权限
-    func checkEnvironment() {
+    func checkEnvironment(systemHasFullAccess: Bool? = nil) {
         // 检查 Full Access（Open Access）
-        // 键盘扩展中通过 hasFullAccess 属性判断
-        hasFullAccess = checkFullAccess()
+        if let systemHasFullAccess {
+            hasFullAccess = systemHasFullAccess
+        } else {
+            hasFullAccess = checkFullAccess()
+        }
         
         // 检查麦克风权限
         hasMicPermission = checkMicPermission()
