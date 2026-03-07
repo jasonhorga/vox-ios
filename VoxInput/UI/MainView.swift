@@ -15,6 +15,9 @@ struct MainView: View {
     /// 全局状态
     @State private var appState = AppState()
 
+    /// 场景生命周期阶段
+    @Environment(\.scenePhase) private var scenePhase
+
     /// 是否显示设置页
     @State private var showSettings = false
 
@@ -102,6 +105,9 @@ struct MainView: View {
             }
             .onOpenURL { url in
                 handleIncomingURL(url)
+            }
+            .onChange(of: scenePhase) { oldPhase, newPhase in
+                handleScenePhaseChange(from: oldPhase, to: newPhase)
             }
             // beta.32: 音频准备覆盖层 — 强制前台停留
             .overlay {
@@ -296,6 +302,24 @@ struct MainView: View {
             break
         @unknown default:
             break
+        }
+    }
+
+    /// 处理场景生命周期变化
+    /// 当 app 从后台或非活跃状态切换到活跃状态时，触发键盘唤醒的守护进程准备
+    /// beta.32: 解决手动前台化时缺少 UI 反馈的问题
+    private func handleScenePhaseChange(from oldPhase: ScenePhase, to newPhase: ScenePhase) {
+        guard newPhase == .active else { return }
+
+        // 仅处理从后台/非活跃切回前台
+        guard oldPhase == .background || oldPhase == .inactive else { return }
+
+        // 避免打断正在进行的录音或处理
+        guard appState.recordingState == .idle else { return }
+
+        // 触发守护进程就绪反馈（兜底：手动点图标启动主 App 场景）
+        Task {
+            await appState.primeDaemonForKeyboardWakeup(daemon: daemonService)
         }
     }
 
