@@ -139,7 +139,7 @@ final class KeyboardState {
 
         guard hasFullAccess else {
             phase = .error("请先开启完全访问")
-            statusMessage = "请在系统设置中开启"完全访问""
+            statusMessage = "请在系统设置中开启\u{201C}完全访问\u{201D}"
             scheduleReset()
             return false
         }

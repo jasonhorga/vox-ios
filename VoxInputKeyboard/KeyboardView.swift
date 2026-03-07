@@ -187,7 +187,7 @@ struct KeyboardView: View {
             VStack(alignment: .leading, spacing: 6) {
                 Label("打开 Vox Input 应用", systemImage: "1.circle.fill")
                     .font(.system(size: 13))
-                Label("等待显示"后台语音守护已就绪"", systemImage: "2.circle.fill")
+                Label("等待显示\u{201C}后台语音守护已就绪\u{201D}", systemImage: "2.circle.fill")
                     .font(.system(size: 13))
                 Label("返回这里，再次按住说话", systemImage: "3.circle.fill")
                     .font(.system(size: 13))
