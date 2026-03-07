@@ -415,7 +415,17 @@ final class KeyboardState {
     }
 
     private func shouldWakeMainApp() -> Bool {
-        return daemonState == "sleeping" || daemonState == "dead" || daemonState.isEmpty
+        if daemonState == "sleeping" || daemonState == "dead" || daemonState.isEmpty {
+            return true
+        }
+        if lastHeartbeatAt <= 0 {
+            return true
+        }
+        let delta = Date().timeIntervalSince1970 - lastHeartbeatAt
+        if delta > Constants.Daemon.heartbeatTimeout {
+            return true
+        }
+        return false
     }
 
     private func openMainAppForWakeup() -> Bool {
@@ -481,18 +491,11 @@ final class KeyboardState {
         sendCommand(.cancel)
         clearRequestTracking()
 
-        SharedLogger.info("[KeyboardState] startup ack timeout, attempting auto-wake")
+        SharedLogger.info("[KeyboardState] startup ack timeout, showing manual wakeup UI")
 
-        openURLDidFail = false
-        phase = .processing
-        statusMessage = "正在唤醒 Vox Input..."
-
-        let opened = openMainAppForWakeup()
-        if !opened {
-            openURLDidFail = true
-            phase = .error("无法打开 Vox Input")
-            statusMessage = "唤醒失败，请手动打开 Vox App 重新激活"
-        }
+        openURLDidFail = true
+        phase = .error("无法唤醒 Vox Input")
+        statusMessage = "唤醒超时，请手动打开 Vox App 重新激活"
     }
 
     private func handleRequestTimeoutIfNeeded() {

@@ -41,7 +41,7 @@ final class AudioDaemonService {
     private let ipcQueue = DispatchQueue(label: "com.jasonhorga.vox.daemon.ipc", qos: .userInitiated)
 
     private var pollTimer: Timer?
-    private var heartbeatTimer: Timer?
+    private var heartbeatTimer: DispatchSourceTimer?
 
     private var lastCommandID: Int = 0
     private var lastActivityAt: Date = Date()
@@ -82,9 +82,12 @@ final class AudioDaemonService {
             }
         }
 
-        heartbeatTimer = Timer.scheduledTimer(withTimeInterval: Constants.Daemon.heartbeatInterval, repeats: true) { [weak self] _ in
+        heartbeatTimer = DispatchSource.makeTimerSource(queue: ipcQueue)
+        heartbeatTimer?.schedule(deadline: .now(), repeating: Constants.Daemon.heartbeatInterval)
+        heartbeatTimer?.setEventHandler { [weak self] in
             self?.writeHeartbeat()
         }
+        heartbeatTimer?.resume()
 
         writeHeartbeat()
         SharedLogger.info("AudioDaemonService started")
@@ -95,7 +98,7 @@ final class AudioDaemonService {
 
         pollTimer?.invalidate()
         pollTimer = nil
-        heartbeatTimer?.invalidate()
+        heartbeatTimer?.cancel()
         heartbeatTimer = nil
         processingTask?.cancel()
         processingTask = nil
