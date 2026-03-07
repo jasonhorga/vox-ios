@@ -289,6 +289,13 @@ final class KeyboardState {
             if isRequestInFlight, !hasSeenRecordingInCurrentRequest, !hasSentStopInCurrentRequest {
                 return
             }
+            // 自动恢复逻辑：当 phase 是 .error 且不需要唤醒 App 时
+            if case .error = phase, !needsAppWakeup {
+                clearRequestTracking()
+                phase = .idle
+                statusMessage = ""
+                openURLDidFail = false
+            }
             if case .recording = phase {
                 phase = .processing
                 statusMessage = "识别中..."
@@ -330,13 +337,7 @@ final class KeyboardState {
     }
 
     private func shouldWakeMainApp() -> Bool {
-        if daemonState == "sleeping" || daemonState == "dead" || daemonState.isEmpty {
-            return true
-        }
-
-        guard lastHeartbeatAt > 0 else { return true }
-        let delta = Date().timeIntervalSince1970 - lastHeartbeatAt
-        return delta > Constants.Daemon.heartbeatTimeout
+        return daemonState == "sleeping" || daemonState == "dead" || daemonState.isEmpty
     }
 
     private func openMainAppForWakeup() -> Bool {
