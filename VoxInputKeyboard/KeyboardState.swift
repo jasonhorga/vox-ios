@@ -372,9 +372,19 @@ final class KeyboardState {
         case "sleeping", "dead":
             if isRequestInFlight || phase == .recording || phase == .processing {
                 clearRequestTracking()
-                phase = .error("守护进程已休眠")
-                statusMessage = "守护进程已休眠，请重试"
-                scheduleReset()
+
+                SharedLogger.info("[KeyboardState] daemon sleeping/dead during request, attempting auto-wake")
+
+                openURLDidFail = false
+                phase = .processing
+                statusMessage = "正在唤醒 Vox Input..."
+
+                let opened = openMainAppForWakeup()
+                if !opened {
+                    openURLDidFail = true
+                    phase = .error("无法打开 Vox Input")
+                    statusMessage = "唤醒失败，请手动打开 Vox App 重新激活"
+                }
             }
 
         default:
@@ -470,12 +480,19 @@ final class KeyboardState {
 
         sendCommand(.cancel)
         clearRequestTracking()
-        
-        // beta.37: 启动超时通常意味着主 App 未能打开或守护进程无法启动
-        // 显示手动跳转 UI 而非简单的"请重试"
-        phase = .error("后台服务已休眠，请手动打开一次 Vox App 重新激活")
-        statusMessage = "后台服务已休眠，请手动打开一次 Vox App 重新激活"
-        // 不 scheduleReset，让 needsAppWakeup 的 UI 持续显示
+
+        SharedLogger.info("[KeyboardState] startup ack timeout, attempting auto-wake")
+
+        openURLDidFail = false
+        phase = .processing
+        statusMessage = "正在唤醒 Vox Input..."
+
+        let opened = openMainAppForWakeup()
+        if !opened {
+            openURLDidFail = true
+            phase = .error("无法打开 Vox Input")
+            statusMessage = "唤醒失败，请手动打开 Vox App 重新激活"
+        }
     }
 
     private func handleRequestTimeoutIfNeeded() {
