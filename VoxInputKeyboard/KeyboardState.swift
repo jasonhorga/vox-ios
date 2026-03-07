@@ -82,6 +82,9 @@ final class KeyboardState {
     private var startupAckTimeoutTask: Task<Void, Never>?
     private var requestTimeoutTask: Task<Void, Never>?
 
+    /// 唤醒主 App 期间的状态锁，避免轮询状态机重复触发唤醒
+    private var isWakingUp: Bool = false
+
     // MARK: - Wiring
 
     /// 由 ViewController 注入桥接能力
@@ -155,6 +158,7 @@ final class KeyboardState {
 
         // 守护进程睡眠或心跳超时 -> 极速闪跳唤醒
         if shouldWakeMainApp() {
+            isWakingUp = true
             phase = .processing
             statusMessage = "正在唤醒 Vox Input..."
             let _ = openMainAppForWakeup()
@@ -365,21 +369,12 @@ final class KeyboardState {
             }
 
         case "sleeping", "dead":
+            if isWakingUp { return }
             if isRequestInFlight || phase == .recording || phase == .processing {
                 clearRequestTracking()
-
-                SharedLogger.info("[KeyboardState] daemon sleeping/dead during request, attempting auto-wake")
-
-                openURLDidFail = false
-                phase = .processing
-                statusMessage = "正在唤醒 Vox Input..."
-
-                let opened = openMainAppForWakeup()
-                if !opened {
-                    openURLDidFail = true
-                    phase = .error("无法打开 Vox Input")
-                    statusMessage = "唤醒失败，请手动打开 Vox App 重新激活"
-                }
+                openURLDidFail = true
+                phase = .error("后台服务已休眠")
+                statusMessage = "守护进程已休眠，请手动打开一次 Vox App"
             }
 
         default:
@@ -437,6 +432,7 @@ final class KeyboardState {
             try? await Task.sleep(nanoseconds: 1_500_000_000)
             await MainActor.run { [weak self] in
                 guard let self else { return }
+                self.isWakingUp = false
                 if self.phase == .processing && self.statusMessage == "正在唤醒 Vox Input..." {
                     self.openURLDidFail = true
                     self.phase = .error("无法自动唤醒 Vox Input")
@@ -502,6 +498,7 @@ final class KeyboardState {
 
         SharedLogger.info("[KeyboardState] startup ack timeout, retry wakeup via openURL")
 
+        isWakingUp = true
         phase = .processing
         statusMessage = "正在唤醒 Vox Input..."
         let _ = openMainAppForWakeup()
@@ -563,15 +560,19 @@ final class KeyboardState {
 
     func wakeupAppFromError() {
         guard needsAppWakeup else { return }
+        isWakingUp = true
         openURLDidFail = false
         phase = .processing
         statusMessage = "正在唤醒 Vox Input..."
         let opened = openMainAppForWakeup()
         if !opened {
+            isWakingUp = false
             openURLDidFail = true
             phase = .error("自动唤醒失败")
             statusMessage = "自动唤醒失败，请手动打开应用"
+            return
         }
+        scheduleWakeupSilentFailureFallback()
     }
 
     private func scheduleReset() {
