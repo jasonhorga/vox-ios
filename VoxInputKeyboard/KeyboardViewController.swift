@@ -208,25 +208,30 @@ class KeyboardViewController: UIInputViewController {
     // MARK: - URL Opening
 
     private func openURLRobust(_ url: URL) -> Bool {
-        let selector = NSSelectorFromString("openURL:")
-        var responder: UIResponder? = self
-        while let r = responder {
-            if r.responds(to: selector) && r !== self {
-                r.perform(selector, with: url)
-                return true
-            }
-            responder = r.next
-        }
-
+        // 1. extensionContext（官方方法）
         if let context = extensionContext {
             let contextSelector = NSSelectorFromString("openURL:completionHandler:")
             if context.responds(to: contextSelector) {
                 context.perform(contextSelector, with: url, with: nil)
-                return true
             }
         }
 
-        return false
+        // 2. 强抓 UIApplication（键盘扩展兜底黑魔法）
+        let sharedAppClass: AnyClass? = NSClassFromString("UIApplication")
+        if let appClass = sharedAppClass as? NSObject.Type {
+            let sharedAppSelector = NSSelectorFromString("sharedApplication")
+            if appClass.responds(to: sharedAppSelector) {
+                let sharedApp = appClass.perform(sharedAppSelector)?.takeUnretainedValue()
+                let openURLSelector = NSSelectorFromString("openURL:")
+                if let app = sharedApp, app.responds(to: openURLSelector) {
+                    app.perform(openURLSelector, with: url)
+                    return true
+                }
+            }
+        }
+
+        // 始终返回 true，由状态机异步判断是否被系统静默拦截
+        return true
     }
 
 }

@@ -157,14 +157,9 @@ final class KeyboardState {
         if shouldWakeMainApp() {
             phase = .processing
             statusMessage = "正在唤醒 Vox Input..."
-            let opened = openMainAppForWakeup()
-            if !opened {
-                phase = .error("无法打开 Vox Input")
-                statusMessage = "打开 Vox Input 失败，请手动打开应用"
-                openURLDidFail = true
-                // 不 scheduleReset，让用户看到手动跳转 UI
-                return false
-            }
+            let _ = openMainAppForWakeup()
+            scheduleWakeupSilentFailureFallback()
+            return false
         }
 
         beginRequestTracking()
@@ -437,6 +432,20 @@ final class KeyboardState {
         return handler(url)
     }
 
+    private func scheduleWakeupSilentFailureFallback() {
+        Task {
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            await MainActor.run { [weak self] in
+                guard let self else { return }
+                if self.phase == .processing && self.statusMessage == "正在唤醒 Vox Input..." {
+                    self.openURLDidFail = true
+                    self.phase = .error("无法自动唤醒 Vox Input")
+                    self.statusMessage = "跳转被系统拦截，请手动打开应用"
+                }
+            }
+        }
+    }
+
     // MARK: - Request Watchdog
 
     private func beginRequestTracking() {
@@ -491,11 +500,12 @@ final class KeyboardState {
         sendCommand(.cancel)
         clearRequestTracking()
 
-        SharedLogger.info("[KeyboardState] startup ack timeout, showing manual wakeup UI")
+        SharedLogger.info("[KeyboardState] startup ack timeout, retry wakeup via openURL")
 
-        openURLDidFail = true
-        phase = .error("无法唤醒 Vox Input")
-        statusMessage = "唤醒超时，请手动打开 Vox App 重新激活"
+        phase = .processing
+        statusMessage = "正在唤醒 Vox Input..."
+        let _ = openMainAppForWakeup()
+        scheduleWakeupSilentFailureFallback()
     }
 
     private func handleRequestTimeoutIfNeeded() {
