@@ -29,7 +29,11 @@ final class KeyboardState {
 
     // MARK: - Observable State
 
-    private(set) var phase: KeyboardPhase = .idle
+    private(set) var phase: KeyboardPhase = .idle {
+        didSet {
+            handlePhaseTransition(from: oldValue, to: phase)
+        }
+    }
     private(set) var statusMessage: String = ""
 
     /// 当前音频电平（键盘不再本地录音，保留占位）
@@ -62,6 +66,7 @@ final class KeyboardState {
 
     private let ipcQueue = DispatchQueue(label: "com.jasonhorga.vox.keyboard.ipc", qos: .userInitiated)
     private var ipcTimer: Timer?
+    private var waveformTimer: Timer?
     private var daemonStateObserver: DarwinNotificationObserver?
     private var lastResultID: Int = 0
     private var lastHeartbeatAt: TimeInterval = 0
@@ -98,6 +103,7 @@ final class KeyboardState {
     func deactivate() {
         ipcTimer?.invalidate()
         ipcTimer = nil
+        stopFakeWaveformAnimation(resetToZero: true)
         daemonStateObserver?.stop()
         daemonStateObserver = nil
         clearRequestTracking()
@@ -183,6 +189,68 @@ final class KeyboardState {
         statusMessage = ""
         currentLevel = 0
         openURLDidFail = false
+    }
+
+    // MARK: - Fake Waveform Animation
+
+    private func handlePhaseTransition(from oldPhase: KeyboardPhase, to newPhase: KeyboardPhase) {
+        let wasRecording: Bool
+        if case .recording = oldPhase {
+            wasRecording = true
+        } else {
+            wasRecording = false
+        }
+
+        let isRecording: Bool
+        if case .recording = newPhase {
+            isRecording = true
+        } else {
+            isRecording = false
+        }
+
+        if isRecording, !wasRecording {
+            startFakeWaveformAnimation()
+        } else if wasRecording, !isRecording {
+            stopFakeWaveformAnimation(resetToZero: false)
+        }
+    }
+
+    private func startFakeWaveformAnimation() {
+        guard waveformTimer == nil else { return }
+
+        let maxSamples = Constants.Keyboard.waveformSampleCount
+        if levelHistory.count != maxSamples {
+            levelHistory = Array(repeating: 0.0, count: maxSamples)
+        }
+
+        waveformTimer = Timer.scheduledTimer(withTimeInterval: 0.08, repeats: true) { [weak self] _ in
+            guard let self else { return }
+            let randomLevel = Float.random(in: 0.1...0.8)
+            currentLevel = randomLevel
+            levelHistory.append(randomLevel)
+            if levelHistory.count > maxSamples {
+                levelHistory.removeFirst()
+            }
+        }
+    }
+
+    private func stopFakeWaveformAnimation(resetToZero: Bool) {
+        waveformTimer?.invalidate()
+        waveformTimer = nil
+
+        let maxSamples = Constants.Keyboard.waveformSampleCount
+        currentLevel = 0.0
+
+        if resetToZero {
+            levelHistory = Array(repeating: 0.0, count: maxSamples)
+            return
+        }
+
+        var smoothed = levelHistory.suffix(maxSamples).map { max(0.0, $0 * 0.35) }
+        if smoothed.count < maxSamples {
+            smoothed = Array(repeating: 0.0, count: maxSamples - smoothed.count) + smoothed
+        }
+        levelHistory = smoothed
     }
 
     // MARK: - IPC Polling
