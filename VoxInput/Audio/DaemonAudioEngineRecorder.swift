@@ -2,6 +2,7 @@
 // VoxInput
 //
 // 后台守护进程专用录音器：基于 AVAudioEngine（不依赖 AVAudioRecorder）
+// beta.40: Typeless Always-On 架构（引擎常驻 + 软开关采集）
 
 import AVFoundation
 import Foundation
@@ -14,6 +15,7 @@ final class DaemonAudioEngineRecorder {
     var onMaxDurationReached: (() -> Void)?
     var onRuntimeError: ((String) -> Void)?
 
+    /// 语义：当前是否处于“采集中”会话（start->stop 之间）
     private(set) var isRecording: Bool = false
 
     // MARK: - Private
@@ -21,9 +23,16 @@ final class DaemonAudioEngineRecorder {
     private let silenceDetector = SilenceDetector()
 
     private var engine: AVAudioEngine?
+    private var inputFormat: AVAudioFormat?
+
     private var audioFile: AVAudioFile?
     private var recordingURL: URL?
     private var timeoutTimer: Timer?
+
+    /// 软开关：tap 持续产出 buffer，但只有 true 才落盘
+    private var isCapturing: Bool = false
+    /// 引擎是否已完成 prime（session active + engine running + tap installed）
+    private var isPrimed: Bool = false
 
     private var targetFormat: AVAudioFormat?
     private var converter: AVAudioConverter?
@@ -32,19 +41,57 @@ final class DaemonAudioEngineRecorder {
     private static let maxRecordingDuration: TimeInterval = 60.0
 
     private var tempRecordingURL: URL {
-        let tempDir = FileManager.default.temporaryDirectory
-        return tempDir.appendingPathComponent(Constants.Audio.tempFileName)
+        FileManager.default.temporaryDirectory.appendingPathComponent(Constants.Audio.tempFileName)
     }
 
-    func start() throws {
-        cleanupTempFile()
-        runtimeError = nil
+    // MARK: - Typeless lifecycle
+
+    /// beta.40: 只做底层 prime，不开启采集
+    func primeIfNeeded() throws {
+        if isPrimed, let engine, engine.isRunning {
+            return
+        }
 
         try configureSessionForRecord()
 
-        let engine = AVAudioEngine()
+        let engine = self.engine ?? AVAudioEngine()
         let inputNode = engine.inputNode
         let inputFormat = inputNode.inputFormat(forBus: 0)
+        self.inputFormat = inputFormat
+
+        inputNode.removeTap(onBus: 0)
+        inputNode.installTap(onBus: 0, bufferSize: 2048, format: inputFormat) { [weak self] buffer, _ in
+            guard let self else { return }
+            self.handleIncomingBuffer(buffer)
+        }
+
+        if !engine.isRunning {
+            do {
+                try engine.start()
+            } catch {
+                cleanupAfterFailure(removeTapOn: inputNode)
+                throw VoxError.recordingFailed("AVAudioEngine 启动失败: \(error.localizedDescription)")
+            }
+        }
+
+        self.engine = engine
+        self.isPrimed = true
+    }
+
+    /// start 命令：不负责启动引擎（优先复用 prime），只开启本次采集会话
+    func start() throws {
+        guard !isRecording else { return }
+
+        runtimeError = nil
+        silenceDetector.reset()
+        cleanupTempFile()
+
+        // 若外部尚未 prime，兜底一次（保证行为稳定）
+        try primeIfNeeded()
+
+        guard let inputFormat else {
+            throw VoxError.recordingFailed("输入音频格式不可用")
+        }
 
         guard let target = AVAudioFormat(
             commonFormat: .pcmFormatFloat32,
@@ -56,7 +103,6 @@ final class DaemonAudioEngineRecorder {
         }
 
         let url = tempRecordingURL
-
         let fileSettings: [String: Any] = [
             AVFormatIDKey: Int(kAudioFormatLinearPCM),
             AVSampleRateKey: target.sampleRate,
@@ -67,59 +113,44 @@ final class DaemonAudioEngineRecorder {
         ]
 
         let outputFile = try AVAudioFile(forWriting: url, settings: fileSettings)
-
-        let converter = AVAudioConverter(from: inputFormat, to: target)
-        if converter == nil {
+        guard let converter = AVAudioConverter(from: inputFormat, to: target) else {
             throw VoxError.recordingFailed("音频格式转换器初始化失败")
         }
 
-        self.engine = engine
         self.audioFile = outputFile
         self.recordingURL = url
         self.targetFormat = target
         self.converter = converter
-        self.silenceDetector.reset()
 
-        inputNode.removeTap(onBus: 0)
-        inputNode.installTap(onBus: 0, bufferSize: 2048, format: inputFormat) { [weak self] buffer, _ in
-            guard let self else { return }
-            self.handleIncomingBuffer(buffer)
-        }
-
-        do {
-            try engine.start()
-        } catch {
-            cleanupAfterFailure(removeTapOn: inputNode)
-            throw VoxError.recordingFailed("AVAudioEngine 启动失败: \(error.localizedDescription)")
-        }
-
+        isCapturing = true
         isRecording = true
         startTimeoutTimer()
     }
 
+    /// stop 命令：只关闭采集，不停引擎（黄灯继续亮，守护进程保持可唤醒）
     func stop() throws -> URL {
         stopTimeoutTimer()
 
-        guard let engine else {
+        guard isRecording else {
             throw VoxError.recordingFailed("没有活跃的录音会话")
         }
 
-        engine.inputNode.removeTap(onBus: 0)
-        engine.stop()
+        isCapturing = false
+        isRecording = false
 
-        self.engine = nil
-        self.audioFile = nil
-        self.targetFormat = nil
-        self.converter = nil
-        self.isRecording = false
-
-        if let runtimeError, !runtimeError.isEmpty {
-            cleanupTempFile()
-            throw VoxError.recordingFailed(runtimeError)
-        }
+        let localRuntimeError = runtimeError
+        runtimeError = nil
 
         guard let url = recordingURL else {
+            clearCaptureResources()
             throw VoxError.audioFileInvalid
+        }
+
+        clearCaptureResources(keepURL: true)
+
+        if let localRuntimeError, !localRuntimeError.isEmpty {
+            cleanupTempFile()
+            throw VoxError.recordingFailed(localRuntimeError)
         }
 
         let fileSize = try FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int ?? 0
@@ -133,31 +164,56 @@ final class DaemonAudioEngineRecorder {
             throw VoxError.audioEmpty
         }
 
+        recordingURL = nil
         return url
     }
 
-    func cancel() {
+    /// cancel 命令：默认只取消本次采集，保留已 prime 引擎
+    func cancel(keepEngineAlive: Bool = true) {
         stopTimeoutTimer()
+
+        isCapturing = false
+        isRecording = false
+        runtimeError = nil
+
+        clearCaptureResources()
+        cleanupTempFile()
+
+        if !keepEngineAlive {
+            sleepShutdown()
+        }
+    }
+
+    /// 仅在超时休眠或明确不需要保活时调用：真正关引擎 + 释放 session
+    func sleepShutdown() {
+        stopTimeoutTimer()
+
+        isCapturing = false
+        isRecording = false
+        runtimeError = nil
+
+        clearCaptureResources()
+        cleanupTempFile()
 
         if let engine {
             engine.inputNode.removeTap(onBus: 0)
             engine.stop()
         }
 
-        engine = nil
-        audioFile = nil
-        targetFormat = nil
-        converter = nil
-        runtimeError = nil
-        isRecording = false
+        self.engine = nil
+        self.inputFormat = nil
+        self.isPrimed = false
 
-        cleanupTempFile()
+        do {
+            try AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        } catch {
+            // 休眠阶段失败不阻断主流程
+        }
     }
 
     func cleanupTempFile() {
         let url = tempRecordingURL
         try? FileManager.default.removeItem(at: url)
-        recordingURL = nil
     }
 
     // MARK: - Private
@@ -180,19 +236,29 @@ final class DaemonAudioEngineRecorder {
         timeoutTimer = nil
     }
 
+    private func clearCaptureResources(keepURL: Bool = false) {
+        audioFile = nil
+        targetFormat = nil
+        converter = nil
+        if !keepURL {
+            recordingURL = nil
+        }
+    }
+
     private func cleanupAfterFailure(removeTapOn inputNode: AVAudioInputNode) {
         inputNode.removeTap(onBus: 0)
         engine?.stop()
         engine = nil
-        audioFile = nil
-        targetFormat = nil
-        converter = nil
+        inputFormat = nil
+        isPrimed = false
+        isCapturing = false
         isRecording = false
+        clearCaptureResources()
         cleanupTempFile()
     }
 
     private func handleIncomingBuffer(_ buffer: AVAudioPCMBuffer) {
-        guard isRecording else { return }
+        guard isCapturing, isRecording else { return }
         guard let converter, let targetFormat, let audioFile else { return }
 
         do {
@@ -252,16 +318,10 @@ final class DaemonAudioEngineRecorder {
         runtimeError = message
 
         stopTimeoutTimer()
-        if let engine {
-            engine.inputNode.removeTap(onBus: 0)
-            engine.stop()
-        }
-
-        engine = nil
-        audioFile = nil
-        targetFormat = nil
-        converter = nil
+        isCapturing = false
         isRecording = false
+
+        clearCaptureResources(keepURL: true)
 
         onRuntimeError?(message)
     }
