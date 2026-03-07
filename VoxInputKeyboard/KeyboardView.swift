@@ -154,9 +154,10 @@ struct KeyboardView: View {
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 24)
 
-                if state.needsAppWakeup, let wakeupAction = onWakeupApp {
-                    Button(action: wakeupAction) {
-                        Text("🚀 立即唤醒")
+                if state.needsAppWakeup {
+                    // beta.46: 使用 SwiftUI Link 作为后备跳转
+                    Link(destination: URL(string: "voxinput://record?source=keyboard&mode=wakeup")!) {
+                        Text("🚀 打开 Vox Input")
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(.white)
                             .padding(.horizontal, 18)
@@ -170,10 +171,11 @@ struct KeyboardView: View {
         }
     }
     
-    // MARK: - beta.37: 手动跳转引导视图
+    // MARK: - beta.46: 手动跳转引导视图（使用 SwiftUI Link）
     
-    /// 当所有自动 openURL 策略失败时，显示清晰的手动跳转引导
-    /// 用户需要：1. 打开 Vox Input 应用  2. 等待激活  3. 返回这里重新录音
+    /// 当所有自动 openURL 策略失败时，使用 SwiftUI Link 让用户手动跳转
+    /// SwiftUI Link 使用系统级 URL 打开机制，不依赖 UIApplication hack
+    /// 这是 KeyboardKit 8.8.6+ 在 iOS 18 中验证过的方案
     private var manualWakeupGuide: some View {
         VStack(spacing: 10) {
             Image(systemName: "hand.tap.fill")
@@ -184,47 +186,41 @@ struct KeyboardView: View {
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(.primary)
             
-            VStack(alignment: .leading, spacing: 6) {
-                Label("打开 Vox Input 应用", systemImage: "1.circle.fill")
-                    .font(.system(size: 13))
-                Label("等待显示\u{201C}后台语音守护已就绪\u{201D}", systemImage: "2.circle.fill")
-                    .font(.system(size: 13))
-                Label("返回这里，再次按住说话", systemImage: "3.circle.fill")
-                    .font(.system(size: 13))
-            }
-            .foregroundStyle(.secondary)
-            .padding(.horizontal, 16)
+            Text("后台服务已休眠，请点击下方按钮打开 Vox Input")
+                .font(.system(size: 13))
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 16)
             
-            // 再试一次按钮（用户可能切换完回来了）
-            HStack(spacing: 12) {
-                if let wakeupAction = onWakeupApp {
-                    Button(action: wakeupAction) {
-                        Text("🔄 再试一次")
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 6)
-                            .background(Color.blue)
-                            .clipShape(Capsule())
-                    }
+            // beta.46: 使用 SwiftUI Link — 系统级 URL 打开机制
+            // 这是最可靠的跳转方式，不依赖 UIApplication hack
+            Link(destination: URL(string: "voxinput://record?source=keyboard&mode=wakeup")!) {
+                HStack(spacing: 6) {
+                    Image(systemName: "arrow.up.forward.app.fill")
+                        .font(.system(size: 14))
+                    Text("打开 Vox Input")
+                        .font(.system(size: 14, weight: .semibold))
                 }
-                
-                Button {
-                    // 重置状态到 idle，让用户可以重新按住说话
-                    Task { @MainActor in
-                        state.resetToIdle()
-                    }
-                } label: {
-                    Text("✅ 已打开，重新录音")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 6)
-                        .background(Color.green)
-                        .clipShape(Capsule())
-                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 10)
+                .background(Color.blue)
+                .clipShape(Capsule())
             }
             .padding(.top, 4)
+            
+            // 已打开后重置状态
+            Button {
+                Task { @MainActor in
+                    state.resetToIdle()
+                }
+            } label: {
+                Text("✅ 已打开，重新录音")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.blue)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 6)
+            }
         }
     }
     
@@ -246,10 +242,11 @@ struct KeyboardView: View {
         }
     }
     
-    // MARK: - 唤醒按钮
+    // MARK: - 唤醒按钮（beta.46: 使用 SwiftUI Link）
     
     private func wakeupButton(action: @escaping () -> Void) -> some View {
         VStack(spacing: 12) {
+            // 先尝试 UIResponder chain 自动唤醒
             Button(action: action) {
                 HStack(spacing: 8) {
                     Text("🚀")
