@@ -24,6 +24,9 @@ struct KeyboardView: View {
     /// 录音停止回调
     let onRecordStop: () -> Void
     
+    /// 唤醒主 App 回调
+    let onWakeupApp: (() -> Void)?
+    
     var body: some View {
         VStack(spacing: 0) {
             // 主内容区
@@ -62,6 +65,9 @@ struct KeyboardView: View {
             if state.isSecureInput {
                 // 密码输入框提示
                 secureInputHint
+            } else if state.needsAppWakeup, let wakeupAction = onWakeupApp {
+                // 需要唤醒主 App 的错误场景
+                wakeupButton(action: wakeupAction)
             } else {
                 // 麦克风按钮
                 micButton
@@ -156,6 +162,30 @@ struct KeyboardView: View {
             Text("语音输入在密码框中不可用")
                 .font(.system(size: 12))
                 .foregroundStyle(.tertiary)
+        }
+    }
+    
+    // MARK: - 唤醒按钮
+    
+    private func wakeupButton(action: @escaping () -> Void) -> some View {
+        VStack(spacing: 12) {
+            Button(action: action) {
+                HStack(spacing: 8) {
+                    Text("🚀")
+                        .font(.system(size: 24))
+                    Text("唤醒")
+                        .font(.system(size: 16, weight: .medium))
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 24)
+                .padding(.vertical, 12)
+                .background(Color.orange)
+                .clipShape(Capsule())
+            }
+            
+            Text("后台服务已休眠，点击唤醒")
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
         }
     }
     

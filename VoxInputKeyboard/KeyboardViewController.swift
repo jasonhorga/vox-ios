@@ -137,6 +137,9 @@ class KeyboardViewController: UIInputViewController {
             },
             onRecordStop: { [weak self] in
                 self?.handleRecordStop()
+            },
+            onWakeupApp: { [weak self] in
+                self?.handleWakeupApp()
             }
         )
 
@@ -193,6 +196,13 @@ class KeyboardViewController: UIInputViewController {
     private func handleRecordStop() {
         Task { @MainActor in
             keyboardState.stopRecording()
+        }
+    }
+    
+    /// 处理唤醒主 App（用于特定错误场景）
+    private func handleWakeupApp() {
+        Task { @MainActor in
+            keyboardState.wakeupAppFromError()
         }
     }
 
@@ -288,13 +298,14 @@ class KeyboardViewController: UIInputViewController {
 /// 键盘内容包装视图
 /// 仅在 Full Access 未开启时显示引导；其余场景都允许进入主流程
 private struct KeyboardContentView: View {
-
+    
     let state: KeyboardState
     let needsGlobeKey: Bool
     let onGlobeKeyTap: () -> Void
     let onRecordStart: () -> Void
     let onRecordStop: () -> Void
-
+    let onWakeupApp: () -> Void
+    
     var body: some View {
         Group {
             if !state.hasFullAccess {
@@ -317,7 +328,8 @@ private struct KeyboardContentView: View {
                     needsGlobeKey: needsGlobeKey,
                     onGlobeKeyTap: onGlobeKeyTap,
                     onRecordStart: onRecordStart,
-                    onRecordStop: onRecordStop
+                    onRecordStop: onRecordStop,
+                    onWakeupApp: onWakeupApp
                 )
             }
         }

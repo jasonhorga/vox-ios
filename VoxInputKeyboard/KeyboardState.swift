@@ -47,6 +47,11 @@ final class KeyboardState {
 
     /// 最近一次 daemon 错误
     private(set) var daemonErrorMessage: String?
+    
+    /// 是否为需要唤醒后台服务的特定错误
+    var needsAppWakeup: Bool {
+        daemonErrorMessage?.contains("后台服务已休眠") == true
+    }
 
     // MARK: - IPC Internals
 
@@ -422,6 +427,13 @@ final class KeyboardState {
     }
 
     // MARK: - Utils
+
+    func wakeupAppFromError() {
+        guard needsAppWakeup else { return }
+        phase = .processing
+        statusMessage = "正在唤醒 Vox Input..."
+        _ = openMainAppForWakeup()
+    }
 
     private func scheduleReset() {
         Task {

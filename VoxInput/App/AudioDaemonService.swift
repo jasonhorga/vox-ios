@@ -286,7 +286,11 @@ final class AudioDaemonService {
             stopSilentKeeperIfRunning(trigger: "recording-started")
         } catch {
             // 任何失败都立刻落盘 error 并广播，确保键盘侧不会无限等待
-            publishError("录音启动失败: \(error.localizedDescription)")
+            if let wakeupHint = backgroundWakeupHint(from: error) {
+                publishError(wakeupHint)
+            } else {
+                publishError("录音启动失败: \(error.localizedDescription)")
+            }
             reevaluateSilentKeeper(trigger: "start-failed")
             endBackgroundKeepAlive()
         }
@@ -412,6 +416,10 @@ final class AudioDaemonService {
 
     // MARK: - Audio Session / Silent Keeper
 
+    private static let audioSessionIncompatibleOperationError: Int32 = 560557684
+    private static let backgroundWakeupRecoveryMessage = "后台服务已休眠，请手动打开一次 Vox App 重新激活"
+    private static let cannotInterruptOthersHint = "cannot interrupt others"
+
     private func ensureSessionPrimedForBackgroundStart() throws {
         let session = AVAudioSession.sharedInstance()
         try session.setCategory(.playAndRecord, mode: .default, options: [.mixWithOthers, .allowBluetooth])
@@ -438,7 +446,43 @@ final class AudioDaemonService {
                 }
             }
         }
+
+        if let translatedError = translatedAudioSessionActivationError(lastError) {
+            throw translatedError
+        }
         throw lastError ?? VoxError.recordingFailed("音频会话激活失败（5次重试均失败）")
+    }
+
+    private func translatedAudioSessionActivationError(_ error: Error?) -> VoxError? {
+        guard let error else { return nil }
+
+        if let nsError = error as NSError? {
+            if nsError.code == Self.audioSessionIncompatibleOperationError {
+                return .recordingFailed(Self.backgroundWakeupRecoveryMessage)
+            }
+
+            let lowercased = nsError.localizedDescription.lowercased()
+            if lowercased.contains(Self.cannotInterruptOthersHint) {
+                return .recordingFailed(Self.backgroundWakeupRecoveryMessage)
+            }
+        }
+
+        return nil
+    }
+
+    private func backgroundWakeupHint(from error: Error) -> String? {
+        if let translated = translatedAudioSessionActivationError(error) {
+            if case .recordingFailed(let message) = translated {
+                return message
+            }
+        }
+
+        let localized = error.localizedDescription
+        if localized.contains(Self.backgroundWakeupRecoveryMessage) {
+            return Self.backgroundWakeupRecoveryMessage
+        }
+
+        return nil
     }
 
     private func startSilentKeeperIfNeeded(trigger: String) throws {
