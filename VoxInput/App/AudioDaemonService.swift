@@ -147,7 +147,7 @@ final class AudioDaemonService {
 
         for attempt in 1...5 {
             do {
-                try session.setCategory(.playAndRecord, mode: .measurement, options: [.mixWithOthers, .defaultToSpeaker])
+                try session.setCategory(.playAndRecord, mode: .default, options: [.mixWithOthers, .allowBluetooth])
                 try session.setActive(true, options: [])
 
                 // 验证会话确实处于活跃状态
@@ -197,7 +197,7 @@ final class AudioDaemonService {
         // 预先激活音频会话，这样当 start 命令到达时会话已经准备好
         do {
             let session = AVAudioSession.sharedInstance()
-            try session.setCategory(.playAndRecord, mode: .measurement, options: [.mixWithOthers, .defaultToSpeaker])
+            try session.setCategory(.playAndRecord, mode: .default, options: [.mixWithOthers, .allowBluetooth])
             try session.setActive(true, options: [])
             try startSilentKeeperIfNeeded(trigger: "darwin-wake-prime")
             SharedLogger.info("audio session primed from Darwin wake")
@@ -413,10 +413,8 @@ final class AudioDaemonService {
     // MARK: - Audio Session / Silent Keeper
 
     private func ensureSessionPrimedForBackgroundStart() throws {
-        // 后台 start 前，先尝试保活音频确保 session 已被占用
-        try startSilentKeeperIfNeeded(trigger: "prime-before-start")
         let session = AVAudioSession.sharedInstance()
-        try session.setCategory(.playAndRecord, mode: .measurement, options: [.mixWithOthers, .defaultToSpeaker])
+        try session.setCategory(.playAndRecord, mode: .default, options: [.mixWithOthers, .allowBluetooth])
 
         // 重试激活音频会话，应对后台转换时序竞争（OSStatus 560557684）
         // beta.32: 增加重试次数和延迟时间
@@ -428,6 +426,8 @@ final class AudioDaemonService {
                 if attempt > 1 {
                     SharedLogger.info("audio session activated on retry attempt \(attempt)")
                 }
+                // 会话确认激活后再启动静音保活
+                try startSilentKeeperIfNeeded(trigger: "prime-before-start")
                 return
             } catch {
                 lastError = error

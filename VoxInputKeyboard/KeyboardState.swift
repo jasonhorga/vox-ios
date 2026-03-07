@@ -5,7 +5,6 @@
 
 import Foundation
 import Observation
-import AVFoundation
 
 /// 键盘扩展状态
 enum KeyboardPhase: Equatable {
@@ -39,7 +38,6 @@ final class KeyboardState {
     private(set) var levelHistory: [Float] = []
 
     private(set) var hasFullAccess: Bool = false
-    private(set) var hasMicPermission: Bool = false
     private(set) var isSecureInput: Bool = false
 
     var inputContextHint: String?
@@ -106,8 +104,7 @@ final class KeyboardState {
             probeFullAccessAsync()
         }
 
-        hasMicPermission = checkMicPermission()
-        SharedLogger.info("环境检查: fullAccess=\(hasFullAccess), mic=\(hasMicPermission)")
+        SharedLogger.info("环境检查: fullAccess=\(hasFullAccess)")
     }
 
     func updateSecureInputState(_ isSecure: Bool) {
@@ -154,8 +151,8 @@ final class KeyboardState {
 
         beginRequestTracking()
         sendCommand(.start, postWakeNotification: true)
-        phase = .recording
-        statusMessage = "录音中..."
+        phase = .processing
+        statusMessage = "正在连接后台录音..."
         return true
     }
 
@@ -420,30 +417,6 @@ final class KeyboardState {
 
             Task { @MainActor [weak self] in
                 self?.hasFullAccess = hasAccess
-            }
-        }
-    }
-
-    private func checkMicPermission() -> Bool {
-        if #available(iOS 17.0, *) {
-            let permission = AVAudioApplication.shared.recordPermission
-            switch permission {
-            case .granted:
-                return true
-            case .denied, .undetermined:
-                return false
-            @unknown default:
-                return false
-            }
-        } else {
-            let permission = AVAudioSession.sharedInstance().recordPermission
-            switch permission {
-            case .granted:
-                return true
-            case .denied, .undetermined:
-                return false
-            @unknown default:
-                return false
             }
         }
     }
