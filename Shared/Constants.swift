@@ -119,7 +119,8 @@ enum Constants {
         /// 键盘等待后台守护进程返回结果超时（秒）
         static let resultTimeout: TimeInterval = 10.0
         /// 键盘等待守护进程启动确认超时（秒）
-        static let startupAckTimeout: TimeInterval = 2.0
+        /// beta.37: 从 2s 增加到 5s，给 daemon 更多重试时间
+        static let startupAckTimeout: TimeInterval = 5.0
         
         /// 根据屏幕高度和安全区域动态计算键盘高度
         /// - Parameters:

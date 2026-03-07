@@ -53,6 +53,9 @@ final class KeyboardState {
         daemonErrorMessage?.contains("后台服务已休眠") == true
     }
 
+    /// beta.37: 所有自动化 openURL 策略均已失败，需要显示手动跳转 UI
+    private(set) var openURLDidFail: Bool = false
+
     // MARK: - IPC Internals
 
     let config = SharedConfigStore.shared
@@ -136,10 +139,13 @@ final class KeyboardState {
 
         guard hasFullAccess else {
             phase = .error("请先开启完全访问")
-            statusMessage = "请在系统设置中开启“完全访问”"
+            statusMessage = "请在系统设置中开启"完全访问""
             scheduleReset()
             return false
         }
+
+        // 重置 openURL 失败标记
+        openURLDidFail = false
 
         // 守护进程睡眠或心跳超时 -> 极速闪跳唤醒
         if shouldWakeMainApp() {
@@ -149,7 +155,8 @@ final class KeyboardState {
             if !opened {
                 phase = .error("无法打开 Vox Input")
                 statusMessage = "打开 Vox Input 失败，请手动打开应用"
-                scheduleReset()
+                openURLDidFail = true
+                // 不 scheduleReset，让用户看到手动跳转 UI
                 return false
             }
         }
@@ -175,6 +182,7 @@ final class KeyboardState {
         phase = .idle
         statusMessage = ""
         currentLevel = 0
+        openURLDidFail = false
     }
 
     // MARK: - IPC Polling
@@ -229,6 +237,7 @@ final class KeyboardState {
             clearResultAsync(expectedID: snapshot.resultID)
 
             clearRequestTracking()
+            openURLDidFail = false
             insertTextHandler?(inserted)
             phase = .done("已输入：\(inserted)")
             statusMessage = "已注入文本"
@@ -254,11 +263,12 @@ final class KeyboardState {
             hasSeenRecordingInCurrentRequest = true
             startupAckTimeoutTask?.cancel()
             startupAckTimeoutTask = nil
+            openURLDidFail = false
             phase = .recording
             statusMessage = "录音中..."
 
         case "processing":
-            // 避免上一轮残留 processing 把新一轮录音瞬间“顶掉”
+            // 避免上一轮残留 processing 把新一轮录音瞬间"顶掉"
             if isRequestInFlight, !hasSeenRecordingInCurrentRequest, !hasSentStopInCurrentRequest {
                 return
             }
@@ -391,9 +401,12 @@ final class KeyboardState {
 
         sendCommand(.cancel)
         clearRequestTracking()
-        phase = .error("后台启动超时，请重试")
-        statusMessage = "后台启动超时，请重试"
-        scheduleReset()
+        
+        // beta.37: 启动超时通常意味着主 App 未能打开或守护进程无法启动
+        // 显示手动跳转 UI 而非简单的"请重试"
+        phase = .error("后台服务已休眠，请手动打开一次 Vox App 重新激活")
+        statusMessage = "后台服务已休眠，请手动打开一次 Vox App 重新激活"
+        // 不 scheduleReset，让 needsAppWakeup 的 UI 持续显示
     }
 
     private func handleRequestTimeoutIfNeeded() {
@@ -430,11 +443,36 @@ final class KeyboardState {
 
     // MARK: - Utils
 
+    /// beta.37: 用户手动打开 App 后重置状态，准备重新录音
+    func resetToIdle() {
+        clearRequestTracking()
+        phase = .idle
+        statusMessage = ""
+        openURLDidFail = false
+    }
+
+    /// beta.37: 所有自动 openURL 策略均失败后，由 ViewController 调用
+    func markOpenURLFailed() {
+        guard needsAppWakeup || phase == .processing else { return }
+        openURLDidFail = true
+        if phase == .processing {
+            phase = .error("后台服务已休眠，请手动打开一次 Vox App 重新激活")
+            statusMessage = "自动唤醒失败，请手动打开应用"
+        }
+        SharedLogger.error("[openURL] 所有自动策略失败，切换到手动跳转 UI")
+    }
+
     func wakeupAppFromError() {
         guard needsAppWakeup else { return }
+        openURLDidFail = false
         phase = .processing
         statusMessage = "正在唤醒 Vox Input..."
-        _ = openMainAppForWakeup()
+        let opened = openMainAppForWakeup()
+        if !opened {
+            openURLDidFail = true
+            phase = .error("自动唤醒失败")
+            statusMessage = "自动唤醒失败，请手动打开应用"
+        }
     }
 
     private func scheduleReset() {
@@ -443,6 +481,7 @@ final class KeyboardState {
             if phase != .recording && phase != .processing {
                 phase = .idle
                 statusMessage = ""
+                openURLDidFail = false
             }
         }
     }

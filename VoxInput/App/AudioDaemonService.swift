@@ -194,16 +194,41 @@ final class AudioDaemonService {
         if state == .sleeping || state == .dead {
             publishState(.idle, clearError: true)
         }
-        // 预先激活音频会话，这样当 start 命令到达时会话已经准备好
-        do {
-            let session = AVAudioSession.sharedInstance()
-            try session.setCategory(.playAndRecord, mode: .default, options: [.mixWithOthers, .allowBluetooth])
-            try session.setActive(true, options: [])
-            try startSilentKeeperIfNeeded(trigger: "darwin-wake-prime")
-            SharedLogger.info("audio session primed from Darwin wake")
-        } catch {
-            SharedLogger.error("Darwin wake audio prime failed: \(error.localizedDescription)")
+        // beta.37: 更激进的音频会话预激活，多次重试
+        // 键盘发来 wake 通知时，主 App 可能刚被系统从挂起状态唤醒
+        // 需要多次重试确保音频会话能抢到
+        Task { @MainActor in
+            await primeAudioSessionWithRetry(trigger: "darwin-wake")
         }
+    }
+
+    /// beta.37: 带重试的音频会话预激活
+    private func primeAudioSessionWithRetry(trigger: String) async {
+        let session = AVAudioSession.sharedInstance()
+        let retryDelays: [UInt64] = [
+            100_000_000,  // 0.1s
+            200_000_000,  // 0.2s
+            400_000_000,  // 0.4s
+            800_000_000,  // 0.8s
+        ]
+
+        for attempt in 1...5 {
+            do {
+                try session.setCategory(.playAndRecord, mode: .default, options: [.mixWithOthers, .allowBluetooth])
+                try session.setActive(true, options: [])
+                try startSilentKeeperIfNeeded(trigger: "\(trigger)-attempt-\(attempt)")
+                SharedLogger.info("audio session primed from \(trigger) (attempt \(attempt))")
+                return
+            } catch {
+                SharedLogger.error("\(trigger) audio prime attempt \(attempt)/5 failed: \(error.localizedDescription)")
+                if attempt < 5 {
+                    try? await Task.sleep(nanoseconds: retryDelays[attempt - 1])
+                }
+            }
+        }
+
+        SharedLogger.error("\(trigger): all 5 audio session prime attempts failed")
+        // 即使预激活失败也不发布 error —— 等 start 命令到来时再尝试
     }
 
     // MARK: - IPC Polling
@@ -278,21 +303,46 @@ final class AudioDaemonService {
             return
         }
 
-        do {
-            try ensureSessionPrimedForBackgroundStart()
-            try recorder.start()
-            publishState(.recording, clearError: true)
-            SharedLogger.info("daemon start recording")
-            stopSilentKeeperIfRunning(trigger: "recording-started")
-        } catch {
-            // 任何失败都立刻落盘 error 并广播，确保键盘侧不会无限等待
-            if let wakeupHint = backgroundWakeupHint(from: error) {
-                publishError(wakeupHint)
-            } else {
-                publishError("录音启动失败: \(error.localizedDescription)")
+        // beta.37: 异步启动录音，允许音频会话重试
+        Task { @MainActor in
+            await startRecordingWithRetry()
+        }
+    }
+
+    /// beta.37: 带重试的录音启动
+    /// 在后台环境中，音频会话可能需要多次尝试才能成功激活
+    private func startRecordingWithRetry() async {
+        let retryDelays: [UInt64] = [
+            200_000_000,  // 0.2s
+            400_000_000,  // 0.4s
+            800_000_000,  // 0.8s
+        ]
+
+        for attempt in 1...4 {
+            do {
+                try ensureSessionPrimedForBackgroundStart()
+                try recorder.start()
+                publishState(.recording, clearError: true)
+                SharedLogger.info("daemon start recording (attempt \(attempt))")
+                stopSilentKeeperIfRunning(trigger: "recording-started")
+                return
+            } catch {
+                SharedLogger.error("录音启动 attempt \(attempt)/4 失败: \(error.localizedDescription)")
+
+                if attempt < 4 {
+                    try? await Task.sleep(nanoseconds: retryDelays[attempt - 1])
+                    continue
+                }
+
+                // 最后一次尝试仍然失败
+                if let wakeupHint = backgroundWakeupHint(from: error) {
+                    publishError(wakeupHint)
+                } else {
+                    publishError("录音启动失败: \(error.localizedDescription)")
+                }
+                reevaluateSilentKeeper(trigger: "start-failed")
+                endBackgroundKeepAlive()
             }
-            reevaluateSilentKeeper(trigger: "start-failed")
-            endBackgroundKeepAlive()
         }
     }
 

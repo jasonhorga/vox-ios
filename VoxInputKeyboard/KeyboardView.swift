@@ -133,30 +133,98 @@ struct KeyboardView: View {
     
     // MARK: - 错误状态
     
+    /// beta.37 重写：错误状态视图
+    /// - 如果 openURL 全部失败 (openURLDidFail)：显示手动跳转引导
+    /// - 如果需要唤醒但还没试过/还有机会：显示唤醒按钮
+    /// - 其他错误：只显示错误信息
     private func errorView(message: String) -> some View {
         VStack(spacing: 8) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 32))
-                .foregroundStyle(.orange)
-            
-            Text(message)
-                .font(.system(size: 14))
-                .foregroundStyle(.primary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 24)
+            if state.openURLDidFail {
+                // beta.37: 所有自动策略失败，显示手动跳转引导
+                manualWakeupGuide
+            } else {
+                // 普通错误 + 可选唤醒按钮
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 32))
+                    .foregroundStyle(.orange)
+                
+                Text(message)
+                    .font(.system(size: 14))
+                    .foregroundStyle(.primary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 24)
 
-            if state.needsAppWakeup, let wakeupAction = onWakeupApp {
-                Button(action: wakeupAction) {
-                    Text("🚀 立即唤醒")
-                        .font(.system(size: 14, weight: .semibold))
+                if state.needsAppWakeup, let wakeupAction = onWakeupApp {
+                    Button(action: wakeupAction) {
+                        Text("🚀 立即唤醒")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 18)
+                            .padding(.vertical, 8)
+                            .background(Color.orange)
+                            .clipShape(Capsule())
+                    }
+                    .padding(.top, 8)
+                }
+            }
+        }
+    }
+    
+    // MARK: - beta.37: 手动跳转引导视图
+    
+    /// 当所有自动 openURL 策略失败时，显示清晰的手动跳转引导
+    /// 用户需要：1. 打开 Vox Input 应用  2. 等待激活  3. 返回这里重新录音
+    private var manualWakeupGuide: some View {
+        VStack(spacing: 10) {
+            Image(systemName: "hand.tap.fill")
+                .font(.system(size: 28))
+                .foregroundStyle(.blue)
+            
+            Text("需要唤醒 Vox Input")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(.primary)
+            
+            VStack(alignment: .leading, spacing: 6) {
+                Label("打开 Vox Input 应用", systemImage: "1.circle.fill")
+                    .font(.system(size: 13))
+                Label("等待显示"后台语音守护已就绪"", systemImage: "2.circle.fill")
+                    .font(.system(size: 13))
+                Label("返回这里，再次按住说话", systemImage: "3.circle.fill")
+                    .font(.system(size: 13))
+            }
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 16)
+            
+            // 再试一次按钮（用户可能切换完回来了）
+            HStack(spacing: 12) {
+                if let wakeupAction = onWakeupApp {
+                    Button(action: wakeupAction) {
+                        Text("🔄 再试一次")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 6)
+                            .background(Color.blue)
+                            .clipShape(Capsule())
+                    }
+                }
+                
+                Button {
+                    // 重置状态到 idle，让用户可以重新按住说话
+                    Task { @MainActor in
+                        state.resetToIdle()
+                    }
+                } label: {
+                    Text("✅ 已打开，重新录音")
+                        .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(.white)
-                        .padding(.horizontal, 18)
-                        .padding(.vertical, 8)
-                        .background(Color.orange)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 6)
+                        .background(Color.green)
                         .clipShape(Capsule())
                 }
-                .padding(.top, 8)
             }
+            .padding(.top, 4)
         }
     }
     
