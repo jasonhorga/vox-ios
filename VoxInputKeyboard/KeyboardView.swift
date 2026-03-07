@@ -144,6 +144,19 @@ struct KeyboardView: View {
                 .foregroundStyle(.primary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 24)
+
+            if state.needsAppWakeup, let wakeupAction = onWakeupApp {
+                Button(action: wakeupAction) {
+                    Text("🚀 立即唤醒")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 18)
+                        .padding(.vertical, 8)
+                        .background(Color.orange)
+                        .clipShape(Capsule())
+                }
+                .padding(.top, 8)
+            }
         }
     }
     

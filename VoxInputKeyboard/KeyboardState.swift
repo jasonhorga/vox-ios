@@ -270,7 +270,9 @@ final class KeyboardState {
             let message = daemonErrorMessage ?? "识别失败"
             phase = .error(message)
             statusMessage = message
-            scheduleReset()
+            if !needsAppWakeup {
+                scheduleReset()
+            }
 
         case "idle":
             // 新请求 start 后，daemon 可能短暂还在 idle，不能误判为 processing
