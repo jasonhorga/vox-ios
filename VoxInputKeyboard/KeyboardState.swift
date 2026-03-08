@@ -29,17 +29,14 @@ final class KeyboardState {
 
     // MARK: - Observable State
 
-    private(set) var phase: KeyboardPhase = .idle {
-        didSet {
-            handlePhaseTransition(from: oldValue, to: phase)
-        }
-    }
+    private(set) var phase: KeyboardPhase = .idle
     private(set) var statusMessage: String = ""
 
-    /// 当前音频电平（键盘不再本地录音，保留占位）
-    private(set) var currentLevel: Float = 0.0
-    /// 电平历史（保留占位，兼容旧 UI）
-    private(set) var levelHistory: [Float] = []
+    /// beta.58: 简化为纯布尔标记，波形动画交给 TimelineView 自驱动
+    var isRecordingForWaveform: Bool {
+        if case .recording = phase { return true }
+        return false
+    }
 
     private(set) var hasFullAccess: Bool = false
     private(set) var isSecureInput: Bool = false
@@ -66,7 +63,6 @@ final class KeyboardState {
 
     private let ipcQueue = DispatchQueue(label: "com.jasonhorga.vox.keyboard.ipc", qos: .userInitiated)
     private var ipcTimer: Timer?
-    private var waveformTask: Task<Void, Never>?
     private var daemonStateObserver: DarwinNotificationObserver?
     private var lastResultID: Int = 0
     private var lastHeartbeatAt: TimeInterval = 0
@@ -98,16 +94,11 @@ final class KeyboardState {
         startIPCMonitoringIfNeeded()
         startDarwinStateObserverIfNeeded()
         updateFromIPC()
-        // Phase 2 fix: 键盘重新激活时，如果已经在录音但波形 task 被 deactivate 销毁了，重启波形
-        if case .recording = phase, waveformTask == nil {
-            startFakeWaveformAnimation()
-        }
     }
 
     func deactivate() {
         ipcTimer?.invalidate()
         ipcTimer = nil
-        stopFakeWaveformAnimation(resetToZero: true)
         daemonStateObserver?.stop()
         daemonStateObserver = nil
         clearRequestTracking()
@@ -199,70 +190,6 @@ final class KeyboardState {
         clearRequestTracking()
         phase = .idle
         statusMessage = ""
-        currentLevel = 0
-    }
-
-    // MARK: - Fake Waveform Animation
-
-    private func handlePhaseTransition(from oldPhase: KeyboardPhase, to newPhase: KeyboardPhase) {
-        let wasRecording: Bool
-        if case .recording = oldPhase {
-            wasRecording = true
-        } else {
-            wasRecording = false
-        }
-
-        let isRecording: Bool
-        if case .recording = newPhase {
-            isRecording = true
-        } else {
-            isRecording = false
-        }
-
-        if isRecording, !wasRecording {
-            startFakeWaveformAnimation()
-        } else if wasRecording, !isRecording {
-            stopFakeWaveformAnimation(resetToZero: false)
-        }
-    }
-
-    @MainActor
-    private func startFakeWaveformAnimation() {
-        // Cancel any lingering task first to avoid ghost tasks
-        waveformTask?.cancel()
-        waveformTask = nil
-
-        let maxSamples = Constants.Keyboard.waveformSampleCount
-        // Always start from a clean zero baseline so the waveform reliably appears
-        levelHistory = Array(repeating: 0.0, count: maxSamples)
-        currentLevel = 0.0
-
-        waveformTask = Task { @MainActor [weak self] in
-            while !Task.isCancelled {
-                guard let self else { break }
-                let randomLevel = Float.random(in: 0.1...0.8)
-                self.currentLevel = randomLevel
-                var newHistory = self.levelHistory
-                newHistory.append(randomLevel)
-                if newHistory.count > maxSamples {
-                    newHistory.removeFirst()
-                }
-                self.levelHistory = newHistory
-                try? await Task.sleep(nanoseconds: 80_000_000)
-            }
-        }
-    }
-
-    @MainActor
-    private func stopFakeWaveformAnimation(resetToZero: Bool) {
-        waveformTask?.cancel()
-        waveformTask = nil
-
-        let maxSamples = Constants.Keyboard.waveformSampleCount
-        currentLevel = 0.0
-        // Always fully reset levelHistory so the next startFakeWaveformAnimation
-        // begins from a clean state and the UI reliably updates
-        levelHistory = Array(repeating: 0.0, count: maxSamples)
     }
 
     // MARK: - IPC Polling

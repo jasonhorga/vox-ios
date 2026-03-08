@@ -70,7 +70,7 @@ struct KeyboardView: View {
 
     private var recordingView: some View {
         VStack(spacing: 12) {
-            KeyboardWaveformView(levels: state.levelHistory)
+            KeyboardWaveformView(isRecording: state.isRecordingForWaveform)
                 .frame(height: 60)
                 .padding(.horizontal, 24)
 
@@ -209,36 +209,53 @@ struct KeyboardView: View {
     }
 }
 
-/// 简化版波形视图（键盘扩展专用，减少采样点）
+/// beta.58: 波形视图 — 使用 TimelineView(.animation) 自驱动
+/// 彻底解决杀后台/重开后 Task 和 Timer 死锁导致波形冻结的问题
+/// SwiftUI 底层驱动渲染帧，只要 isRecording == true 就永不假死
 struct KeyboardWaveformView: View {
 
-    let levels: [Float]
+    let isRecording: Bool
+
+    /// 柱子数量
+    private let barCount = Constants.Keyboard.waveformSampleCount
 
     var body: some View {
-        Canvas { context, size in
-            let barCount = Constants.Keyboard.waveformSampleCount
-            let barWidth = size.width / CGFloat(barCount) * 0.7
-            let barSpacing = size.width / CGFloat(barCount)
-            let centerY = size.height / 2
+        if isRecording {
+            TimelineView(.animation) { timeline in
+                Canvas { context, size in
+                    let t = timeline.date.timeIntervalSinceReferenceDate
+                    let barWidth = size.width / CGFloat(barCount) * 0.7
+                    let barSpacing = size.width / CGFloat(barCount)
+                    let centerY = size.height / 2
 
-            for i in 0..<barCount {
-                let level: Float
-                if i < levels.count {
-                    level = levels[i]
-                } else {
-                    level = 0.0
+                    for i in 0..<barCount {
+                        let fi = Double(i)
+
+                        // 多层 sin/cos 叠加，模拟自然、不规则的声波
+                        let wave1 = sin(t * 3.2 + fi * 0.45) * 0.3
+                        let wave2 = cos(t * 5.7 + fi * 0.7) * 0.2
+                        let wave3 = sin(t * 1.8 + fi * 1.2) * 0.15
+                        let wave4 = cos(t * 8.3 + fi * 0.3) * 0.1
+
+                        // 归一化到 0.05 ~ 0.85 范围，保证视觉下限
+                        let raw = 0.4 + wave1 + wave2 + wave3 + wave4
+                        let level = CGFloat(min(max(raw, 0.05), 0.85))
+
+                        let barHeight = max(2, level * size.height * 0.8)
+                        let x = CGFloat(i) * barSpacing + barSpacing * 0.15
+                        let y = centerY - barHeight / 2
+
+                        let rect = CGRect(x: x, y: y, width: barWidth, height: barHeight)
+                        let path = Path(roundedRect: rect, cornerRadius: barWidth / 2)
+
+                        let color = level > 0.5 ? Color.red.opacity(0.8) : Color.blue.opacity(0.7)
+                        context.fill(path, with: .color(color))
+                    }
                 }
-
-                let barHeight = max(2, CGFloat(level) * size.height * 0.8)
-                let x = CGFloat(i) * barSpacing + barSpacing * 0.15
-                let y = centerY - barHeight / 2
-
-                let rect = CGRect(x: x, y: y, width: barWidth, height: barHeight)
-                let path = Path(roundedRect: rect, cornerRadius: barWidth / 2)
-
-                let color = level > 0.5 ? Color.red.opacity(0.8) : Color.blue.opacity(0.7)
-                context.fill(path, with: .color(color))
             }
+        } else {
+            // 非录音状态：静态空白（节省 GPU 帧）
+            Color.clear
         }
     }
 }

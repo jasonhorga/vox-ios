@@ -58,6 +58,9 @@ final class AudioDaemonService {
         guard !isStarted else { return }
         isStarted = true
 
+        // beta.58: Crash Recovery — 检查上次崩溃/被强杀后残留的孤儿录音文件
+        rescueOrphanedRecordingIfNeeded()
+
         recorder.onMaxDurationReached = { [weak self] in
             Task { @MainActor [weak self] in
                 await self?.handleStopCommand()
@@ -141,6 +144,43 @@ final class AudioDaemonService {
 
         SharedLogger.error("primeForBackgroundRecording: all 5 attempts failed")
         return false
+    }
+
+    // MARK: - Crash Recovery
+
+    /// beta.58: 检查 tmp 目录中是否残留上次崩溃/被强杀的录音文件
+    /// 如果存在且大小 > 10KB，说明上次是异常退出，必须抢救音频并写入历史记录
+    private func rescueOrphanedRecordingIfNeeded() {
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(Constants.Audio.tempFileName)
+        let fm = FileManager.default
+
+        guard fm.fileExists(atPath: tempURL.path) else { return }
+
+        do {
+            let attrs = try fm.attributesOfItem(atPath: tempURL.path)
+            let fileSize = attrs[.size] as? Int ?? 0
+
+            // 10KB 阈值：排除空文件或只写了文件头的无效碎片
+            guard fileSize > 10 * 1024 else {
+                // 太小，不值得抢救，直接清理
+                try? fm.removeItem(at: tempURL)
+                SharedLogger.info("Crash recovery: 发现残留录音但太小(\(fileSize)B)，已清理")
+                return
+            }
+
+            // 抢救：复制到 Documents/SavedAudio/ 持久保存
+            if let savedPath = saveAudioToDocuments(tempURL: tempURL) {
+                HistoryManager.shared.addUnrecognized(audioFilePath: savedPath)
+                SharedLogger.info("Crash recovery: 抢救孤儿录音成功 (\(fileSize)B) -> \(savedPath)")
+            }
+
+            // 无论抢救是否成功，都清理 tmp 中的原始文件
+            try? fm.removeItem(at: tempURL)
+        } catch {
+            SharedLogger.error("Crash recovery: 检查残留录音失败: \(error.localizedDescription)")
+            // 清理失败也不阻断启动
+            try? fm.removeItem(at: tempURL)
+        }
     }
 
     // MARK: - Darwin Wake Observer
