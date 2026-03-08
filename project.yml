@@ -139,6 +139,8 @@ targets:
         CFBundlePackageType: "$(PRODUCT_TYPE)"
         CFBundleExecutable: "$(EXECUTABLE_NAME)"
         CFBundleIdentifier: "$(PRODUCT_BUNDLE_IDENTIFIER)"
+        LSApplicationQueriesSchemes:
+          - "voxinput"
         NSExtension:
           NSExtensionAttributes:
             IsASCIICapable: false

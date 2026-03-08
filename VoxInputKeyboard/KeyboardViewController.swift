@@ -209,64 +209,36 @@ class KeyboardViewController: UIInputViewController {
 
     /// beta.46: 通过 UIResponder chain 打开 URL（双层策略）
     ///
-    /// 策略 1: 遍历 UIResponder chain，用 open(_:options:completionHandler:) 新方法
-    ///         此方法在 iOS 17/18 中未被扩展沙盒封堵（openURL: 旧方法在 iOS 18 中被封）
-    /// 策略 2: 回退到 openURL:（旧方法，iOS 17 可用）
-    /// 策略 3: extensionContext fallback
-    ///
-    /// 与旧版代码的关键区别：
-    /// - 旧版直接用 NSClassFromString("UIApplication") 拿 class → sharedApplication 拿 singleton → openURL:
-    /// - 新版通过 UIResponder chain 遍历找到 UIApplication 实例，更自然的 UIKit 调用路径
-    /// - 优先使用 open:options:completionHandler: 新 selector
+    /// 策略 1: 遍历 UIResponder chain，用 openURL:（旧方法，iOS 17 可用）
+    /// 策略 2: extensionContext fallback
     private func openURLViaResponderChain(_ url: URL) -> Bool {
         // 诊断日志：打印 responder chain 帮助排查
         logResponderChain()
         
-        // 策略 1: UIResponder chain + openURL:options:completionHandler:（iOS 17+ 推荐）
-        // Swift:  UIApplication.open(_ url: URL, options: [...], completionHandler: ...)
-        // ObjC:   -[UIApplication openURL:options:completionHandler:]
-        // 需要用 IMP cast 来调用 3 参数 ObjC 方法（perform 最多支持 2 个参数）
-        let newSelector = NSSelectorFromString("openURL:options:completionHandler:")
-        
+        // 策略 1: UIResponder chain + openURL:
+        let oldSelector = NSSelectorFromString("openURL:")
         var responder: UIResponder? = self as UIResponder
         while let r = responder {
-            if r.responds(to: newSelector) {
-                // 使用 method(for:) + unsafeBitCast 调用 3 参数方法
-                // ObjC 签名: -(void)openURL:(NSURL*)url options:(NSDictionary*)opts completionHandler:(void(^)(BOOL))cb
-                typealias OpenURLIMP = @convention(c) (AnyObject, Selector, Any, Any, Any?) -> Void
-                let imp = unsafeBitCast(r.method(for: newSelector), to: OpenURLIMP.self)
-                imp(r, newSelector, url as Any, [:] as NSDictionary, nil)
-                SharedLogger.info("[openURL] ✅ beta.46 策略1成功: UIResponder chain → \(type(of: r)).openURL:options:completionHandler:")
+            if r.responds(to: oldSelector) && r !== self {
+                r.perform(oldSelector, with: url)
+                SharedLogger.info("[openURL] 策略1成功: UIResponder chain")
                 return true
             }
             responder = r.next
         }
         SharedLogger.info("[openURL] 策略1 未找到 responder，尝试策略2...")
         
-        // 策略 2: UIResponder chain + openURL:（旧方法，iOS 17 仍可用）
-        let oldSelector = NSSelectorFromString("openURL:")
-        responder = self as UIResponder
-        while let r = responder {
-            if r.responds(to: oldSelector) {
-                r.perform(oldSelector, with: url)
-                SharedLogger.info("[openURL] ✅ beta.46 策略2成功: UIResponder chain → \(type(of: r)).openURL:")
-                return true
-            }
-            responder = r.next
-        }
-        SharedLogger.info("[openURL] 策略2 未找到 responder，尝试策略3...")
-        
-        // 策略 3: extensionContext fallback（不太可能在键盘扩展中有效，但留作最后手段）
+        // 策略 2: extensionContext fallback
         if let context = extensionContext {
             let ctxSelector = NSSelectorFromString("openURL:completionHandler:")
             if context.responds(to: ctxSelector) {
                 context.perform(ctxSelector, with: url, with: nil)
-                SharedLogger.info("[openURL] ✅ beta.46 策略3成功: extensionContext.openURL:")
+                SharedLogger.info("[openURL] 策略2成功: extensionContext")
                 return true
             }
         }
         
-        SharedLogger.error("[openURL] ❌ beta.46: 所有策略均失败 url=\(url.absoluteString)")
+        SharedLogger.error("[openURL] 所有策略均失败")
         return false
     }
     
