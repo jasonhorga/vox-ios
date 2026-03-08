@@ -94,7 +94,8 @@ enum Constants {
         /// 心跳刷新间隔（秒）
         static let heartbeatInterval: TimeInterval = 1.0
         /// 键盘侧判定主 App 无响应超时（秒）
-        static let heartbeatTimeout: TimeInterval = 6.0
+        /// beta.53: 从 6.0s 减少到 1.5s，实现零延迟快速跳转
+        static let heartbeatTimeout: TimeInterval = 1.5
     }
 
     // MARK: - 键盘扩展
@@ -120,7 +121,8 @@ enum Constants {
         static let resultTimeout: TimeInterval = 10.0
         /// 键盘等待守护进程启动确认超时（秒）
         /// beta.37: 从 2s 增加到 5s，给 daemon 更多重试时间
-        static let startupAckTimeout: TimeInterval = 5.0
+        /// beta.53: 从 5s 减少到 0.5s，实现零延迟快速跳转
+        static let startupAckTimeout: TimeInterval = 0.5
         
         /// 根据屏幕高度和安全区域动态计算键盘高度
         /// - Parameters:

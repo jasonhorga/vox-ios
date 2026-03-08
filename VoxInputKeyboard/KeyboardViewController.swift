@@ -115,6 +115,9 @@ class KeyboardViewController: UIInputViewController {
         keyboardState.bindHandlers(
             insertText: { [weak self] text in
                 self?.textDocumentProxy.insertText(text)
+            },
+            autoJump: { [weak self] in
+                self?.autoJumpToMainApp()
             }
         )
 
@@ -191,7 +194,34 @@ class KeyboardViewController: UIInputViewController {
             keyboardState.stopRecording()
         }
     }
-    
+
+    // MARK: - Auto Jump
+
+    /// 安全版跳转主 App 方法
+    /// beta.53: 使用 1 参数 selector，避免 unsafeBitCast
+    private func autoJumpToMainApp() {
+        guard let url = URL(string: "vox://") else { return }
+
+        let selector = NSSelectorFromString("openURL:")
+        if responds(to: selector) {
+            perform(selector, with: url)
+        } else if let context = extensionContext {
+            context.open(url, completionHandler: nil)
+        }
+    }
+
+    /// 通过响应链跳转（备用方案）
+    private func openURLViaResponderChain(_ url: URL) {
+        var responder: UIResponder? = self
+        while let r = responder {
+            if r.responds(to: NSSelectorFromString("openURL:")) {
+                r.perform(NSSelectorFromString("openURL:"), with: url)
+                return
+            }
+            responder = r.next
+        }
+    }
+
 }
 
 // MARK: - 键盘内容视图（根据权限状态切换）

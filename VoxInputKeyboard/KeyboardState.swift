@@ -66,12 +66,13 @@ final class KeyboardState {
 
     private let ipcQueue = DispatchQueue(label: "com.jasonhorga.vox.keyboard.ipc", qos: .userInitiated)
     private var ipcTimer: Timer?
-    private var waveformTimer: Timer?
+    private var waveformTask: Task<Void, Never>?
     private var daemonStateObserver: DarwinNotificationObserver?
     private var lastResultID: Int = 0
     private var lastHeartbeatAt: TimeInterval = 0
 
     private var insertTextHandler: ((String) -> Void)?
+    private var autoJumpHandler: (() -> Void)?
 
     /// 当前会话追踪（用于屏蔽旧状态抖动 + 超时兜底）
     private var isRequestInFlight = false
@@ -84,8 +85,9 @@ final class KeyboardState {
     // MARK: - Wiring
 
     /// 由 ViewController 注入桥接能力
-    func bindHandlers(insertText: @escaping (String) -> Void) {
+    func bindHandlers(insertText: @escaping (String) -> Void, autoJump: @escaping () -> Void) {
         self.insertTextHandler = insertText
+        self.autoJumpHandler = autoJump
     }
 
     // MARK: - Lifecycle
@@ -155,10 +157,12 @@ final class KeyboardState {
         activeResetTask?.cancel()
 
         // beta.50: 守护进程休眠时不再编程式跳转，由 UI 层 SwiftUI Link 处理
+        // beta.53: 改为立即主动调用 autoJump，"没点中 Link 也会自动跳"
         if shouldWakeMainApp() {
             openURLDidFail = true
             phase = .error("后台服务已休眠")
             statusMessage = "请点击唤醒按钮打开 Vox Input"
+            autoJumpHandler?()
             return false
         }
 
@@ -210,27 +214,32 @@ final class KeyboardState {
     }
 
     private func startFakeWaveformAnimation() {
-        guard waveformTimer == nil else { return }
+        guard waveformTask == nil else { return }
 
         let maxSamples = Constants.Keyboard.waveformSampleCount
         if levelHistory.count != maxSamples {
             levelHistory = Array(repeating: 0.0, count: maxSamples)
         }
 
-        waveformTimer = Timer.scheduledTimer(withTimeInterval: 0.08, repeats: true) { [weak self] _ in
-            guard let self else { return }
-            let randomLevel = Float.random(in: 0.1...0.8)
-            currentLevel = randomLevel
-            levelHistory.append(randomLevel)
-            if levelHistory.count > maxSamples {
-                levelHistory.removeFirst()
+        waveformTask = Task { [weak self] in
+            while !Task.isCancelled {
+                guard let self else { break }
+                let randomLevel = Float.random(in: 0.1...0.8)
+                await MainActor.run {
+                    self.currentLevel = randomLevel
+                    self.levelHistory.append(randomLevel)
+                    if self.levelHistory.count > maxSamples {
+                        self.levelHistory.removeFirst()
+                    }
+                }
+                try? await Task.sleep(nanoseconds: 80_000_000)
             }
         }
     }
 
     private func stopFakeWaveformAnimation(resetToZero: Bool) {
-        waveformTimer?.invalidate()
-        waveformTimer = nil
+        waveformTask?.cancel()
+        waveformTask = nil
 
         let maxSamples = Constants.Keyboard.waveformSampleCount
         currentLevel = 0.0
