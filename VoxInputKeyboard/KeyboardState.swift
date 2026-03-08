@@ -179,6 +179,15 @@ final class KeyboardState {
         sendCommand(.stop)
         phase = .processing
         statusMessage = "识别中..."
+        // 用户点击停止后，开始处理超时计时
+        requestTimeoutTask?.cancel()
+        requestTimeoutTask = Task { [weak self] in
+            let timeout = Constants.Keyboard.resultTimeout
+            try? await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
+            await MainActor.run { [weak self] in
+                self?.handleRequestTimeoutIfNeeded()
+            }
+        }
     }
 
     func cancelRecording() {
@@ -362,6 +371,8 @@ final class KeyboardState {
             hasSeenRecordingInCurrentRequest = true
             startupAckTimeoutTask?.cancel()
             startupAckTimeoutTask = nil
+            requestTimeoutTask?.cancel()
+            requestTimeoutTask = nil
             openURLDidFail = false
             phase = .recording
             statusMessage = "录音中..."
@@ -512,7 +523,7 @@ final class KeyboardState {
 
     private func handleRequestTimeoutIfNeeded() {
         guard isRequestInFlight else { return }
-        guard phase == .recording || phase == .processing else {
+        guard phase == .processing else {
             clearRequestTracking()
             return
         }
