@@ -72,7 +72,7 @@ final class KeyboardState {
     private var lastHeartbeatAt: TimeInterval = 0
 
     private var insertTextHandler: ((String) -> Void)?
-    private var autoJumpHandler: (() -> Void)?
+    private var autoJumpHandler: (() -> Bool)?
 
     /// 当前会话追踪（用于屏蔽旧状态抖动 + 超时兜底）
     private var isRequestInFlight = false
@@ -85,7 +85,7 @@ final class KeyboardState {
     // MARK: - Wiring
 
     /// 由 ViewController 注入桥接能力
-    func bindHandlers(insertText: @escaping (String) -> Void, autoJump: @escaping () -> Void) {
+    func bindHandlers(insertText: @escaping (String) -> Void, autoJump: @escaping () -> Bool) {
         self.insertTextHandler = insertText
         self.autoJumpHandler = autoJump
     }
@@ -162,7 +162,7 @@ final class KeyboardState {
             openURLDidFail = true
             phase = .error("后台服务已休眠")
             statusMessage = "请点击唤醒按钮打开 Vox Input"
-            autoJumpHandler?()
+            _ = autoJumpHandler?()
             return false
         }
 
@@ -221,16 +221,14 @@ final class KeyboardState {
             levelHistory = Array(repeating: 0.0, count: maxSamples)
         }
 
-        waveformTask = Task { [weak self] in
+        waveformTask = Task { @MainActor [weak self] in
             while !Task.isCancelled {
                 guard let self else { break }
                 let randomLevel = Float.random(in: 0.1...0.8)
-                await MainActor.run {
-                    self.currentLevel = randomLevel
-                    self.levelHistory.append(randomLevel)
-                    if self.levelHistory.count > maxSamples {
-                        self.levelHistory.removeFirst()
-                    }
+                self.currentLevel = randomLevel
+                self.levelHistory.append(randomLevel)
+                if self.levelHistory.count > maxSamples {
+                    self.levelHistory.removeFirst()
                 }
                 try? await Task.sleep(nanoseconds: 80_000_000)
             }
@@ -505,10 +503,11 @@ final class KeyboardState {
 
         SharedLogger.info("[KeyboardState] startup ack timeout, showing wakeup Link")
 
-        // beta.50: 不再编程式跳转，让 UI 展示 SwiftUI Link
+        // beta.53: 启动确认超时时也主动补一枪自动跳转，避免用户必须手动点 Link
         openURLDidFail = true
         phase = .error("后台服务无响应")
         statusMessage = "请点击唤醒按钮打开 Vox Input"
+        _ = autoJumpHandler?()
     }
 
     private func handleRequestTimeoutIfNeeded() {

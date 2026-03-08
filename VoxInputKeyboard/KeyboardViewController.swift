@@ -117,7 +117,7 @@ class KeyboardViewController: UIInputViewController {
                 self?.textDocumentProxy.insertText(text)
             },
             autoJump: { [weak self] in
-                self?.autoJumpToMainApp()
+                self?.autoJumpToMainApp() ?? false
             }
         )
 
@@ -199,27 +199,26 @@ class KeyboardViewController: UIInputViewController {
 
     /// 安全版跳转主 App 方法
     /// beta.53: 使用 1 参数 selector，避免 unsafeBitCast
-    private func autoJumpToMainApp() {
-        guard let url = URL(string: "vox://") else { return }
+    private func autoJumpToMainApp() -> Bool {
+        guard let url = URL(string: "voxinput://record?source=keyboard&mode=wakeup") else { return false }
 
         let selector = NSSelectorFromString("openURL:")
-        if responds(to: selector) {
-            perform(selector, with: url)
-        } else if let context = extensionContext {
-            context.open(url, completionHandler: nil)
-        }
-    }
-
-    /// 通过响应链跳转（备用方案）
-    private func openURLViaResponderChain(_ url: URL) {
         var responder: UIResponder? = self
         while let r = responder {
-            if r.responds(to: NSSelectorFromString("openURL:")) {
-                r.perform(NSSelectorFromString("openURL:"), with: url)
-                return
+            if r.responds(to: selector) && r !== self {
+                r.perform(selector, with: url)
+                return true
             }
             responder = r.next
         }
+
+        let ctxSelector = NSSelectorFromString("openURL:completionHandler:")
+        if let context = extensionContext, context.responds(to: ctxSelector) {
+            context.perform(ctxSelector, with: url, with: nil)
+            return true
+        }
+
+        return false
     }
 
 }
