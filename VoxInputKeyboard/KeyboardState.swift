@@ -98,6 +98,10 @@ final class KeyboardState {
         startIPCMonitoringIfNeeded()
         startDarwinStateObserverIfNeeded()
         updateFromIPC()
+        // Phase 2 fix: 键盘重新激活时，如果已经在录音但波形 task 被 deactivate 销毁了，重启波形
+        if case .recording = phase, waveformTask == nil {
+            startFakeWaveformAnimation()
+        }
     }
 
     func deactivate() {
