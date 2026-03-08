@@ -20,8 +20,6 @@ final class DaemonAudioEngineRecorder {
 
     // MARK: - Private
 
-    private let silenceDetector = SilenceDetector()
-
     private var engine: AVAudioEngine?
     private var inputFormat: AVAudioFormat?
 
@@ -33,12 +31,15 @@ final class DaemonAudioEngineRecorder {
     private var isCapturing: Bool = false
     /// 引擎是否已完成 prime（session active + engine running + tap installed）
     private var isPrimed: Bool = false
+    /// 是否已接收到有效音频数据（用于检测空录音）
+    private var hasReceivedAudio: Bool = false
 
     private var targetFormat: AVAudioFormat?
     private var converter: AVAudioConverter?
     private var runtimeError: String?
 
-    private static let maxRecordingDuration: TimeInterval = 60.0
+    /// Sprint 3: 放宽到 1 小时，录音只能由用户手动停止
+    private static let maxRecordingDuration: TimeInterval = 3600.0
 
     private var tempRecordingURL: URL {
         FileManager.default.temporaryDirectory.appendingPathComponent(Constants.Audio.tempFileName)
@@ -83,7 +84,7 @@ final class DaemonAudioEngineRecorder {
         guard !isRecording else { return }
 
         runtimeError = nil
-        silenceDetector.reset()
+        hasReceivedAudio = false
         cleanupTempFile()
 
         // 若外部尚未 prime，兜底一次（保证行为稳定）
@@ -159,7 +160,7 @@ final class DaemonAudioEngineRecorder {
             throw VoxError.audioTooShort
         }
 
-        guard silenceDetector.hasDetectedSound else {
+        guard hasReceivedAudio else {
             cleanupTempFile()
             throw VoxError.audioEmpty
         }
@@ -287,30 +288,11 @@ final class DaemonAudioEngineRecorder {
 
             if convertedBuffer.frameLength > 0 {
                 try audioFile.write(from: convertedBuffer)
-                updateSilenceDetector(with: convertedBuffer)
+                hasReceivedAudio = true
             }
         } catch {
             failRuntime(error)
         }
-    }
-
-    private func updateSilenceDetector(with buffer: AVAudioPCMBuffer) {
-        guard let data = buffer.floatChannelData?[0] else { return }
-        let frameCount = Int(buffer.frameLength)
-        guard frameCount > 0 else { return }
-
-        var peak: Float = 0
-        var index = 0
-        let step = 32
-        while index < frameCount {
-            let value = abs(data[index])
-            if value > peak { peak = value }
-            index += step
-        }
-
-        let safePeak = max(peak, 0.000_0001)
-        let peakDB = 20.0 * log10(safePeak)
-        _ = silenceDetector.update(peakPower: peakDB)
     }
 
     private func failRuntime(_ error: Error) {

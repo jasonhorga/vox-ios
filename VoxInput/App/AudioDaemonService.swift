@@ -335,45 +335,75 @@ final class AudioDaemonService {
 
     // MARK: - Audio Processing
 
+    /// Sprint 3: 识别成功 → 写历史 + 删音频；识别失败 → 保存音频到 Documents + 写未识别历史
     private func processAudio(url: URL) async {
-        defer {
-            try? FileManager.default.removeItem(at: url)
-            endBackgroundKeepAlive()
-        }
-
         do {
-            let rawText = try await transcribeViaPreferredProvider(audioURL: url)
+            let (rawText, providerName) = try await transcribeViaPreferredProvider(audioURL: url)
             let formatted = TextFormatter.format(rawText)
 
+            // 识别成功：删除临时音频
+            try? FileManager.default.removeItem(at: url)
+
             publishResult(formatted)
+            HistoryManager.shared.add(text: formatted, provider: providerName)
             publishState(.idle, clearError: true)
             touchActivity()
-            SharedLogger.info("daemon processing done")
+            SharedLogger.info("daemon processing done, provider: \(providerName)")
         } catch {
+            // 识别失败：保存音频到 Documents 目录，兜底存储
+            let savedPath = saveAudioToDocuments(tempURL: url)
+            try? FileManager.default.removeItem(at: url)
+
+            if let savedPath {
+                HistoryManager.shared.addUnrecognized(audioFilePath: savedPath)
+                SharedLogger.info("ASR 失败，音频已保存: \(savedPath)")
+            }
+
             publishError("识别失败: \(error.localizedDescription)")
             publishState(.idle, clearError: false)
+        }
+
+        endBackgroundKeepAlive()
+    }
+
+    /// Sprint 3: 将临时音频文件复制到 Documents/SavedAudio/ 持久保存
+    private func saveAudioToDocuments(tempURL: URL) -> String? {
+        guard let docsDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { return nil }
+        let audioDir = docsDir.appendingPathComponent("SavedAudio", isDirectory: true)
+        try? FileManager.default.createDirectory(at: audioDir, withIntermediateDirectories: true)
+        let destURL = audioDir.appendingPathComponent("\(UUID().uuidString).wav")
+        do {
+            try FileManager.default.copyItem(at: tempURL, to: destURL)
+            return destURL.path
+        } catch {
+            SharedLogger.error("保存音频失败: \(error.localizedDescription)")
+            return nil
         }
     }
 
     /// 优先 Qwen ASR；在离线或 Qwen 失败时降级到工厂策略
-    private func transcribeViaPreferredProvider(audioURL: URL) async throws -> String {
+    /// Sprint 3: 返回 (text, providerName) 元组，用于写历史记录
+    private func transcribeViaPreferredProvider(audioURL: URL) async throws -> (String, String) {
         if networkMonitor.isConnected {
             let key = config.qwenAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
             if !key.isEmpty {
                 let provider = QwenASR(apiKey: key, model: config.qwenModel)
                 do {
-                    return try await provider.transcribe(audioURL: audioURL)
+                    let text = try await provider.transcribe(audioURL: audioURL)
+                    return (text, "Qwen ASR")
                 } catch {
                     SharedLogger.error("Qwen ASR 失败，降级通用策略: \(error.localizedDescription)")
                 }
             }
         }
 
-        return try await ASRFactory.transcribe(
+        let text = try await ASRFactory.transcribe(
             audioURL: audioURL,
             config: .shared,
             networkAvailable: networkMonitor.isConnected
         )
+        let providerName = networkMonitor.isConnected ? "Cloud ASR" : "Apple Speech (Offline)"
+        return (text, providerName)
     }
 
     // MARK: - Idle Sleep

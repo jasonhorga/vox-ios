@@ -65,6 +65,37 @@ final class HistoryManager {
         saveItems()
     }
     
+    /// Sprint 3: 添加一条未识别音频的历史记录
+    /// - Parameter audioFilePath: 已保存到 Documents 的音频文件路径
+    func addUnrecognized(audioFilePath: String) {
+        let item = HistoryItem(text: "", provider: "未识别", audioFilePath: audioFilePath)
+        items.insert(item, at: 0)
+        
+        if items.count > Self.maxItems {
+            items = Array(items.prefix(Self.maxItems))
+        }
+        
+        saveItems()
+    }
+    
+    /// Sprint 3: 更新已有记录的文字（用于重试 ASR 识别）
+    /// - Parameters:
+    ///   - itemID: 要更新的记录 ID
+    ///   - text: 识别成功的文本
+    ///   - provider: ASR 提供商名称
+    func updateText(for itemID: UUID, text: String, provider: String) {
+        guard let index = items.firstIndex(where: { $0.id == itemID }) else { return }
+        let old = items[index]
+        items[index] = HistoryItem(id: old.id, text: text, timestamp: old.timestamp, provider: provider, audioFilePath: nil)
+        
+        // 识别成功后删除原音频文件
+        if let path = old.audioFilePath {
+            try? FileManager.default.removeItem(atPath: path)
+        }
+        
+        saveItems()
+    }
+    
     /// 删除指定历史记录
     /// - Parameter item: 要删除的记录
     func delete(_ item: HistoryItem) {

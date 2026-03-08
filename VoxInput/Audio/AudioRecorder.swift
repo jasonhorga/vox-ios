@@ -68,7 +68,8 @@ final class AudioRecorder: NSObject {
     // MARK: - 稳定性常量
     
     /// 最长录音时间（秒），超时自动停止
-    private static let maxRecordingDuration: TimeInterval = 60.0
+    /// Sprint 3: 放宽到 1 小时，录音只能由用户手动停止
+    private static let maxRecordingDuration: TimeInterval = 3600.0
     
     /// 录音失败最大重试次数
     private static let maxRetryCount: Int = 2

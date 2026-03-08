@@ -2,6 +2,7 @@
 // VoxInput
 //
 // 历史记录列表：搜索、点击复制、左滑删除、清空全部
+// Sprint 3: 支持未识别音频的展示与手动重试 ASR
 
 import SwiftUI
 
@@ -21,6 +22,9 @@ struct HistoryView: View {
     
     /// 复制成功提示
     @State private var showCopyToast: Bool = false
+    
+    /// Sprint 3: 当前正在重试识别的记录 ID
+    @State private var retryingItemID: UUID?
     
     /// 过滤后的记录
     private var filteredItems: [HistoryItem] {
@@ -97,11 +101,17 @@ struct HistoryView: View {
     private var historyList: some View {
         List {
             ForEach(filteredItems) { item in
-                HistoryRowView(item: item)
-                    .contentShape(Rectangle())
-                    .onTapGesture {
+                HistoryRowView(
+                    item: item,
+                    isRetrying: retryingItemID == item.id,
+                    onRetry: { retryTranscription(for: item) }
+                )
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    if !item.isUnrecognized {
                         copyToClipboard(item.text)
                     }
+                }
             }
             .onDelete { offsets in
                 // 需要映射到实际 items 的索引
@@ -133,19 +143,79 @@ struct HistoryView: View {
             }
         }
     }
+    
+    /// Sprint 3: 手动重试 ASR 识别
+    private func retryTranscription(for item: HistoryItem) {
+        guard let audioPath = item.audioFilePath else { return }
+        let audioURL = URL(fileURLWithPath: audioPath)
+        guard FileManager.default.fileExists(atPath: audioPath) else { return }
+        
+        retryingItemID = item.id
+        
+        Task {
+            do {
+                let text = try await ASRFactory.transcribe(
+                    audioURL: audioURL,
+                    config: .shared,
+                    networkAvailable: NetworkMonitor().isConnected
+                )
+                let formatted = TextFormatter.format(text)
+                historyManager.updateText(for: item.id, text: formatted, provider: "重试识别")
+            } catch {
+                // 重试也失败了，保持原样
+                SharedLogger.error("重试 ASR 失败: \(error.localizedDescription)")
+            }
+            retryingItemID = nil
+        }
+    }
 }
 
 // MARK: - 行视图
 
 /// 单条历史记录行
+/// Sprint 3: 支持未识别音频的展示与"转文字"重试按钮
 private struct HistoryRowView: View {
     let item: HistoryItem
+    let isRetrying: Bool
+    let onRetry: () -> Void
     
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(item.text)
-                .font(.body)
-                .lineLimit(3)
+            if item.isUnrecognized {
+                // 未识别音频：显示波形图标和重试按钮
+                HStack {
+                    Image(systemName: "waveform")
+                        .foregroundStyle(.orange)
+                    Text("音频记录（未识别）")
+                        .font(.body)
+                        .foregroundStyle(.secondary)
+                }
+                
+                if isRetrying {
+                    HStack(spacing: 6) {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text("正在识别...")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                } else {
+                    Button {
+                        onRetry()
+                    } label: {
+                        Label("转文字", systemImage: "arrow.clockwise")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .tint(.blue)
+                }
+            } else {
+                // 正常文本记录
+                Text(item.text)
+                    .font(.body)
+                    .lineLimit(3)
+            }
             
             HStack {
                 Text(item.provider)

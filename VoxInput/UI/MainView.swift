@@ -331,6 +331,9 @@ struct MainView: View {
         guard url.scheme?.lowercased() == "voxinput" else { return }
         guard url.host?.lowercased() == "record" else { return }
 
+        // Sprint 3: 标记为 URL Scheme 唤醒，提示用户返回输入法
+        appState.isURLSchemeActivation = true
+
         // beta.32: 异步启动音频准备流程
         // 主 App 会显示"正在获取麦克风..."覆盖层，强制停留在前台
         // 直到音频会话 100% 确认激活后才允许退出
