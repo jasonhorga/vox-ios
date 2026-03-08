@@ -222,11 +222,22 @@ final class AppState {
 
         if success {
             if isURLSchemeActivation {
-                statusMessage = "✅ 守护进程已就绪\n请点击左上角 ◀ 返回输入法"
+                statusMessage = "✅ 守护进程已就绪，自动返回..."
+                isURLSchemeActivation = false
+                
+                // 延迟 0.8s 等待系统转场动画彻底稳定，否则挂起可能退回桌面
+                Task {
+                    try? await Task.sleep(nanoseconds: 800_000_000)
+                    await MainActor.run {
+                        let selector = NSSelectorFromString("suspend")
+                        if UIApplication.shared.responds(to: selector) {
+                            UIApplication.shared.perform(selector)
+                        }
+                    }
+                }
             } else {
                 statusMessage = "✅ 守护进程已就绪"
             }
-            isURLSchemeActivation = false
         } else {
             statusMessage = "麦克风准备失败，请重试"
             try? await Task.sleep(nanoseconds: UInt64(Constants.UI.toastDuration * 1_000_000_000))
