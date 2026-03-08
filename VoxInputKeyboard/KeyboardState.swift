@@ -299,7 +299,23 @@ final class KeyboardState {
     }
 
     private func apply(_ snapshot: IPCSnapshot) {
-        daemonState = snapshot.state
+        // beta.49: 在源头掐断僵尸状态——心跳超时则强制视为 dead
+        // 根因：主 App 被杀后 UserDefaults 残留 idle，导致 syncPhaseWithDaemonState
+        // 误以为守护进程仍存活，清除 openURLDidFail 并把 phase 闪回 .idle
+        var effectiveState = snapshot.state
+        if effectiveState != "dead" && effectiveState != "sleeping" {
+            if snapshot.heartbeat <= 0 {
+                // 心跳从未写入——守护进程从未启动过，视为 dead
+                effectiveState = "dead"
+            } else {
+                let age = Date().timeIntervalSince1970 - snapshot.heartbeat
+                if age > Constants.Daemon.heartbeatTimeout {
+                    effectiveState = "dead"
+                }
+            }
+        }
+        
+        daemonState = effectiveState
         daemonErrorMessage = snapshot.errorMessage
         lastHeartbeatAt = snapshot.heartbeat
 
@@ -319,7 +335,7 @@ final class KeyboardState {
             return
         }
 
-        syncPhaseWithDaemonState(snapshot.state)
+        syncPhaseWithDaemonState(effectiveState)
     }
 
     private func clearResultAsync(expectedID: Int) {
@@ -438,18 +454,9 @@ final class KeyboardState {
         }
     }
 
+    /// beta.49: 简化——daemonState 已在 apply() 中经过心跳校准，僵尸状态已被标记为 dead
     private func shouldWakeMainApp() -> Bool {
-        if daemonState == "sleeping" || daemonState == "dead" || daemonState.isEmpty {
-            return true
-        }
-        if lastHeartbeatAt <= 0 {
-            return true
-        }
-        let delta = Date().timeIntervalSince1970 - lastHeartbeatAt
-        if delta > Constants.Daemon.heartbeatTimeout {
-            return true
-        }
-        return false
+        return daemonState == "sleeping" || daemonState == "dead" || daemonState.isEmpty
     }
 
     private func openMainAppForWakeup() -> Bool {
