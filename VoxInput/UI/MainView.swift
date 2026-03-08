@@ -308,6 +308,7 @@ struct MainView: View {
     /// 处理场景生命周期变化
     /// 当 app 从后台或非活跃状态切换到活跃状态时，触发键盘唤醒的守护进程准备
     /// beta.32: 解决手动前台化时缺少 UI 反馈的问题
+    /// Phase 3 fix: 仅在 URL Scheme 唤醒时显示 prime overlay；手动打开时静默 prime
     private func handleScenePhaseChange(from oldPhase: ScenePhase, to newPhase: ScenePhase) {
         guard newPhase == .active else { return }
 
@@ -317,9 +318,16 @@ struct MainView: View {
         // 避免打断正在进行的录音或处理
         guard appState.recordingState == .idle else { return }
 
-        // 触发守护进程就绪反馈（兜底：手动点图标启动主 App 场景）
-        Task {
-            await appState.primeDaemonForKeyboardWakeup(daemon: daemonService)
+        // Phase 3 fix: 仅在 URL 唤醒时显示 prime overlay；手动打开时静默 prime
+        if appState.isURLSchemeActivation {
+            Task {
+                await appState.primeDaemonForKeyboardWakeup(daemon: daemonService)
+            }
+        } else {
+            // 手动打开 App，静默 prime（不显示 overlay）
+            Task {
+                await appState.silentPrimeDaemon(daemon: daemonService)
+            }
         }
     }
 

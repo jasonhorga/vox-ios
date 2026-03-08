@@ -236,6 +236,11 @@ final class AppState {
         }
     }
 
+    /// Phase 3: 静默 prime，不显示 overlay，用于手动打开 App 时
+    func silentPrimeDaemon(daemon: AudioDaemonService) async {
+        let _ = await daemon.primeForBackgroundRecording()
+    }
+
     var isNetworkAvailable: Bool {
         networkMonitor.isConnected
     }
