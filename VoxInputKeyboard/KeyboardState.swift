@@ -435,6 +435,11 @@ final class KeyboardState {
         return daemonState == "sleeping" || daemonState == "dead" || daemonState.isEmpty
     }
 
+    /// UI 点击唤醒 Link 时更新提示文案
+    func markWakingUp() {
+        statusMessage = "正在唤醒..."
+    }
+
     // MARK: - Request Watchdog
 
     private func beginRequestTracking() {

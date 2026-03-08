@@ -7,6 +7,7 @@
 import Foundation
 import Observation
 import AVFoundation
+import UIKit
 
 /// 录音流程状态
 enum RecordingState: Equatable {
@@ -222,14 +223,19 @@ final class AppState {
         isPrimingAudio = false
 
         if success {
-            statusMessage = "✅ 守护进程已就绪\n请点击左上角 ◀ 或滑动底部返回输入法"
+            statusMessage = "✅ 守护进程已就绪，自动返回中..."
+            try? await Task.sleep(nanoseconds: 500_000_000)
+
+            let selector = NSSelectorFromString("suspend")
+            if UIApplication.shared.responds(to: selector) {
+                UIApplication.shared.perform(selector)
+            }
         } else {
             statusMessage = "麦克风准备失败，请重试"
-        }
-
-        try? await Task.sleep(nanoseconds: UInt64(Constants.UI.toastDuration * 1_000_000_000))
-        if recordingState == .idle {
-            statusMessage = ""
+            try? await Task.sleep(nanoseconds: UInt64(Constants.UI.toastDuration * 1_000_000_000))
+            if recordingState == .idle {
+                statusMessage = ""
+            }
         }
     }
 
