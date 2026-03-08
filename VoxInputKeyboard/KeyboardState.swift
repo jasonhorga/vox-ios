@@ -226,45 +226,43 @@ final class KeyboardState {
         }
     }
 
+    @MainActor
     private func startFakeWaveformAnimation() {
-        guard waveformTask == nil else { return }
+        // Cancel any lingering task first to avoid ghost tasks
+        waveformTask?.cancel()
+        waveformTask = nil
 
         let maxSamples = Constants.Keyboard.waveformSampleCount
-        if levelHistory.count != maxSamples {
-            levelHistory = Array(repeating: 0.0, count: maxSamples)
-        }
+        // Always start from a clean zero baseline so the waveform reliably appears
+        levelHistory = Array(repeating: 0.0, count: maxSamples)
+        currentLevel = 0.0
 
         waveformTask = Task { @MainActor [weak self] in
             while !Task.isCancelled {
                 guard let self else { break }
                 let randomLevel = Float.random(in: 0.1...0.8)
                 self.currentLevel = randomLevel
-                self.levelHistory.append(randomLevel)
-                if self.levelHistory.count > maxSamples {
-                    self.levelHistory.removeFirst()
+                var newHistory = self.levelHistory
+                newHistory.append(randomLevel)
+                if newHistory.count > maxSamples {
+                    newHistory.removeFirst()
                 }
+                self.levelHistory = newHistory
                 try? await Task.sleep(nanoseconds: 80_000_000)
             }
         }
     }
 
+    @MainActor
     private func stopFakeWaveformAnimation(resetToZero: Bool) {
         waveformTask?.cancel()
         waveformTask = nil
 
         let maxSamples = Constants.Keyboard.waveformSampleCount
         currentLevel = 0.0
-
-        if resetToZero {
-            levelHistory = Array(repeating: 0.0, count: maxSamples)
-            return
-        }
-
-        var smoothed = levelHistory.suffix(maxSamples).map { max(0.0, $0 * 0.35) }
-        if smoothed.count < maxSamples {
-            smoothed = Array(repeating: 0.0, count: maxSamples - smoothed.count) + smoothed
-        }
-        levelHistory = smoothed
+        // Always fully reset levelHistory so the next startFakeWaveformAnimation
+        // begins from a clean state and the UI reliably updates
+        levelHistory = Array(repeating: 0.0, count: maxSamples)
     }
 
     // MARK: - IPC Polling
