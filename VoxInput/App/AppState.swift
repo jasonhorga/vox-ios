@@ -5,6 +5,7 @@
 // 录音 → ASR → PostProcessor(翻译) → TextFormatter → ClipboardOutput
 
 import Foundation
+import UIKit
 import Observation
 import AVFoundation
 
