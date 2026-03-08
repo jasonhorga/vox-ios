@@ -71,7 +71,7 @@ final class KeyboardState {
     private var lastResultID: Int = 0
     private var lastHeartbeatAt: TimeInterval = 0
 
-    private var openAppHandler: ((URL) -> Bool)?
+    private var openAppHandler: ((URL, String) -> Bool)?
     private var insertTextHandler: ((String) -> Void)?
 
     /// 当前会话追踪（用于屏蔽旧状态抖动 + 超时兜底）
@@ -88,7 +88,7 @@ final class KeyboardState {
     // MARK: - Wiring
 
     /// 由 ViewController 注入桥接能力
-    func bindHandlers(openApp: @escaping (URL) -> Bool, insertText: @escaping (String) -> Void) {
+    func bindHandlers(openApp: @escaping (URL, String) -> Bool, insertText: @escaping (String) -> Void) {
         self.openAppHandler = openApp
         self.insertTextHandler = insertText
     }
@@ -458,7 +458,29 @@ final class KeyboardState {
         else {
             return false
         }
-        return handler(url)
+        return handler(url, "B")
+    }
+
+    /// 设置 Debug 跳转状态提示（供 UI 点击即时反馈）
+    func markDebugJumpStatus(method: String) {
+        statusMessage = "正在触发 方法 \(method.uppercased())..."
+    }
+
+    /// Debug 实验室：按指定方法触发跳转（A/B/C）
+    func triggerDebugJump(method: String) {
+        let normalized = method.uppercased()
+        guard let handler = openAppHandler,
+              let url = URL(string: "voxinput://record?source=keyboard&mode=wakeup")
+        else {
+            statusMessage = "跳转处理器未就绪"
+            return
+        }
+
+        markDebugJumpStatus(method: normalized)
+        let opened = handler(url, normalized)
+        if !opened {
+            statusMessage = "方法 \(normalized) 触发失败"
+        }
     }
 
     /// beta.46: 唤醒超时后的回退处理

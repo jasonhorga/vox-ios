@@ -177,39 +177,78 @@ struct KeyboardView: View {
     /// SwiftUI Link 使用系统级 URL 打开机制，不依赖 UIApplication hack
     /// 这是 KeyboardKit 8.8.6+ 在 iOS 18 中验证过的方案
     private var manualWakeupGuide: some View {
-        VStack(spacing: 10) {
+        let wakeURL = URL(string: "voxinput://record?source=keyboard&mode=wakeup")!
+
+        return VStack(spacing: 10) {
             Image(systemName: "hand.tap.fill")
                 .font(.system(size: 28))
                 .foregroundStyle(.blue)
-            
+
             Text("需要唤醒 Vox Input")
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(.primary)
-            
-            Text("后台服务已休眠，请点击下方按钮打开 Vox Input")
+
+            Text("后台服务已休眠，请尝试以下跳转方式")
                 .font(.system(size: 13))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 16)
-            
-            // beta.46: 使用 SwiftUI Link — 系统级 URL 打开机制
-            // 这是最可靠的跳转方式，不依赖 UIApplication hack
-            Link(destination: URL(string: "voxinput://record?source=keyboard&mode=wakeup")!) {
-                HStack(spacing: 6) {
-                    Image(systemName: "arrow.up.forward.app.fill")
-                        .font(.system(size: 14))
-                    Text("打开 Vox Input")
+
+            VStack(spacing: 8) {
+                Button {
+                    Task { @MainActor in
+                        state.markDebugJumpStatus(method: "A")
+                        state.triggerDebugJump(method: "A")
+                    }
+                } label: {
+                    Text("🔘 [方法 A] Context")
                         .font(.system(size: 14, weight: .semibold))
+                        .frame(maxWidth: .infinity)
                 }
-                .foregroundStyle(.white)
-                .padding(.horizontal, 20)
-                .padding(.vertical, 10)
-                .background(Color.blue)
-                .clipShape(Capsule())
+                .buttonStyle(.borderedProminent)
+                .tint(.blue)
+
+                Button {
+                    Task { @MainActor in
+                        state.markDebugJumpStatus(method: "B")
+                        state.triggerDebugJump(method: "B")
+                    }
+                } label: {
+                    Text("🔘 [方法 B] Responder")
+                        .font(.system(size: 14, weight: .semibold))
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.indigo)
+
+                Button {
+                    Task { @MainActor in
+                        state.markDebugJumpStatus(method: "C")
+                        state.triggerDebugJump(method: "C")
+                    }
+                } label: {
+                    Text("🔘 [方法 C] SharedApp")
+                        .font(.system(size: 14, weight: .semibold))
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.purple)
+
+                Link(destination: wakeURL) {
+                    Text("🔘 [方法 D] SwiftUI Link")
+                        .font(.system(size: 14, weight: .semibold))
+                        .frame(maxWidth: .infinity)
+                }
+                .simultaneousGesture(TapGesture().onEnded {
+                    Task { @MainActor in
+                        state.markDebugJumpStatus(method: "D")
+                    }
+                })
+                .buttonStyle(.borderedProminent)
+                .tint(.green)
             }
-            .padding(.top, 4)
-            
-            // 已打开后重置状态
+            .padding(.horizontal, 16)
+
             Button {
                 Task { @MainActor in
                     state.resetToIdle()
