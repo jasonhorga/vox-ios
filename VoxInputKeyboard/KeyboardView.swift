@@ -1,7 +1,7 @@
 // KeyboardView.swift
 // VoxInputKeyboard
 //
-// 键盘扩展主 UI：麦克风按钮 + 波形 + 状态显示
+// beta.50: 键盘扩展主 UI — Method D 唯一真理 + Tap to Toggle + 视觉升级
 // SwiftUI 实现，嵌入 UIInputViewController 中
 
 import SwiftUI
@@ -24,8 +24,8 @@ struct KeyboardView: View {
     /// 录音停止回调
     let onRecordStop: () -> Void
     
-    /// 唤醒主 App 回调
-    let onWakeupApp: (() -> Void)?
+    /// 呼吸动画状态
+    @State private var isPulsing = false
     
     var body: some View {
         VStack(spacing: 0) {
@@ -37,7 +37,16 @@ struct KeyboardView: View {
             bottomBar
         }
         .frame(maxHeight: .infinity)
-        .background(Color(.systemGroupedBackground))
+        .background(
+            LinearGradient(
+                colors: [
+                    Color(.systemBackground),
+                    Color(.secondarySystemBackground).opacity(0.6)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        )
     }
     
     // MARK: - 主内容区
@@ -58,28 +67,31 @@ struct KeyboardView: View {
         }
     }
     
-    // MARK: - 空闲状态
+    // MARK: - 空闲状态 (beta.50: Method D Link + 正常麦克风)
     
     private var idleView: some View {
         VStack(spacing: 16) {
             if state.isSecureInput {
-                // 密码输入框提示
                 secureInputHint
-            } else if state.needsAppWakeup, let wakeupAction = onWakeupApp {
-                // 需要唤醒主 App 的错误场景
-                wakeupButton(action: wakeupAction)
+            } else if state.shouldWakeMainApp() {
+                // 后台休眠 → SwiftUI Link 伪装成唤醒按钮
+                wakeupLinkButton
+                
+                Text("后台已休眠，点击唤醒")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.secondary)
             } else {
-                // 麦克风按钮
+                // 正常麦克风按钮 (tap to toggle)
                 micButton
                 
-                Text("按住说话")
+                Text("点击开始说话")
                     .font(.system(size: 13))
                     .foregroundStyle(.secondary)
             }
         }
     }
     
-    // MARK: - 录音状态
+    // MARK: - 录音状态 (beta.50: tap to stop)
     
     private var recordingView: some View {
         VStack(spacing: 12) {
@@ -88,12 +100,12 @@ struct KeyboardView: View {
                 .frame(height: 60)
                 .padding(.horizontal, 24)
             
-            // 录音中按钮（带脉冲动画）
+            // 录音中按钮（带呼吸动画）
             micButton
             
-            Text("松开结束录音")
-                .font(.system(size: 13))
-                .foregroundStyle(.secondary)
+            Text("录音中，点击结束")
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(.red.opacity(0.8))
         }
     }
     
@@ -103,6 +115,7 @@ struct KeyboardView: View {
         VStack(spacing: 12) {
             ProgressView()
                 .controlSize(.large)
+                .tint(.indigo)
             
             Text(state.statusMessage)
                 .font(.system(size: 14))
@@ -116,7 +129,13 @@ struct KeyboardView: View {
         VStack(spacing: 8) {
             Image(systemName: "checkmark.circle.fill")
                 .font(.system(size: 32))
-                .foregroundStyle(.green)
+                .foregroundStyle(
+                    LinearGradient(
+                        colors: [.green, .mint],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
             
             Text(text)
                 .font(.system(size: 14))
@@ -131,19 +150,59 @@ struct KeyboardView: View {
         }
     }
     
-    // MARK: - 错误状态
+    // MARK: - 错误状态 (beta.50: 简洁唤醒引导)
     
-    /// beta.37 重写：错误状态视图
-    /// - 如果 openURL 全部失败 (openURLDidFail)：显示手动跳转引导
-    /// - 如果需要唤醒但还没试过/还有机会：显示唤醒按钮
-    /// - 其他错误：只显示错误信息
     private func errorView(message: String) -> some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 12) {
             if state.openURLDidFail {
-                // beta.37: 所有自动策略失败，显示手动跳转引导
-                manualWakeupGuide
+                // 后台休眠 → SwiftUI Link 唤醒引导
+                Image(systemName: "bolt.circle.fill")
+                    .font(.system(size: 36))
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [.orange, .red.opacity(0.8)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                
+                Text("后台服务已休眠")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(.primary)
+                
+                // beta.50: 唯一跳转方式 — SwiftUI Link (Method D)
+                Link(destination: URL(string: "voxinput://record?source=keyboard&mode=wakeup")!) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "arrow.up.forward.app.fill")
+                        Text("点击唤醒 Vox Input")
+                    }
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 10)
+                    .background(
+                        LinearGradient(
+                            colors: [.orange, .red.opacity(0.8)],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .clipShape(Capsule())
+                    .shadow(color: .orange.opacity(0.3), radius: 8, y: 2)
+                }
+                .buttonStyle(.plain)
+                
+                Button {
+                    Task { @MainActor in
+                        state.resetToIdle()
+                    }
+                } label: {
+                    Text("✅ 已唤醒，重新录音")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(.blue)
+                }
             } else {
-                // 普通错误 + 可选唤醒按钮
+                // 普通错误
                 Image(systemName: "exclamationmark.triangle.fill")
                     .font(.system(size: 32))
                     .foregroundStyle(.orange)
@@ -153,112 +212,6 @@ struct KeyboardView: View {
                     .foregroundStyle(.primary)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 24)
-
-                if state.needsAppWakeup {
-                    // beta.46: 使用 SwiftUI Link 作为后备跳转
-                    Link(destination: URL(string: "voxinput://record?source=keyboard&mode=wakeup")!) {
-                        Text("🚀 打开 Vox Input")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 18)
-                            .padding(.vertical, 8)
-                            .background(Color.orange)
-                            .clipShape(Capsule())
-                    }
-                    .padding(.top, 8)
-                }
-            }
-        }
-    }
-    
-    // MARK: - beta.46: 手动跳转引导视图（使用 SwiftUI Link）
-    
-    /// 当所有自动 openURL 策略失败时，使用 SwiftUI Link 让用户手动跳转
-    /// SwiftUI Link 使用系统级 URL 打开机制，不依赖 UIApplication hack
-    /// 这是 KeyboardKit 8.8.6+ 在 iOS 18 中验证过的方案
-    private var manualWakeupGuide: some View {
-        let wakeURL = URL(string: "voxinput://record?source=keyboard&mode=wakeup")!
-
-        return VStack(spacing: 10) {
-            Image(systemName: "hand.tap.fill")
-                .font(.system(size: 28))
-                .foregroundStyle(.blue)
-
-            Text("需要唤醒 Vox Input")
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(.primary)
-
-            Text("后台服务已休眠，请尝试以下跳转方式")
-                .font(.system(size: 13))
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 16)
-
-            VStack(spacing: 8) {
-                Button {
-                    Task { @MainActor in
-                        state.markDebugJumpStatus(method: "A")
-                        state.triggerDebugJump(method: "A")
-                    }
-                } label: {
-                    Text("🔘 [方法 A] Context")
-                        .font(.system(size: 14, weight: .semibold))
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(.blue)
-
-                Button {
-                    Task { @MainActor in
-                        state.markDebugJumpStatus(method: "B")
-                        state.triggerDebugJump(method: "B")
-                    }
-                } label: {
-                    Text("🔘 [方法 B] Responder")
-                        .font(.system(size: 14, weight: .semibold))
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(.indigo)
-
-                Button {
-                    Task { @MainActor in
-                        state.markDebugJumpStatus(method: "C")
-                        state.triggerDebugJump(method: "C")
-                    }
-                } label: {
-                    Text("🔘 [方法 C] SharedApp")
-                        .font(.system(size: 14, weight: .semibold))
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(.purple)
-
-                Link(destination: wakeURL) {
-                    Text("🔘 [方法 D] SwiftUI Link")
-                        .font(.system(size: 14, weight: .semibold))
-                        .frame(maxWidth: .infinity)
-                }
-                .simultaneousGesture(TapGesture().onEnded {
-                    Task { @MainActor in
-                        state.markDebugJumpStatus(method: "D")
-                    }
-                })
-                .buttonStyle(.borderedProminent)
-                .tint(.green)
-            }
-            .padding(.horizontal, 16)
-
-            Button {
-                Task { @MainActor in
-                    state.resetToIdle()
-                }
-            } label: {
-                Text("✅ 已打开，重新录音")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(.blue)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 6)
             }
         }
     }
@@ -281,64 +234,139 @@ struct KeyboardView: View {
         }
     }
     
-    // MARK: - 唤醒按钮（beta.46: 使用 SwiftUI Link）
+    // MARK: - beta.50: SwiftUI Link 唤醒按钮（伪装成麦克风 + 闪电）
     
-    private func wakeupButton(action: @escaping () -> Void) -> some View {
-        VStack(spacing: 12) {
-            // 先尝试 UIResponder chain 自动唤醒
-            Button(action: action) {
-                HStack(spacing: 8) {
-                    Text("🚀")
-                        .font(.system(size: 24))
-                    Text("唤醒")
-                        .font(.system(size: 16, weight: .medium))
+    private var wakeupLinkButton: some View {
+        Link(destination: URL(string: "voxinput://record?source=keyboard&mode=wakeup")!) {
+            ZStack {
+                // 外圈光晕
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [
+                                Color.orange.opacity(0.2),
+                                Color.clear
+                            ],
+                            center: .center,
+                            startRadius: Constants.Keyboard.micButtonSize * 0.4,
+                            endRadius: Constants.Keyboard.micButtonSize * 0.7
+                        )
+                    )
+                    .frame(
+                        width: Constants.Keyboard.micButtonSize + 20,
+                        height: Constants.Keyboard.micButtonSize + 20
+                    )
+                
+                // 主按钮
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: [Color.orange, Color.red.opacity(0.85)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(
+                        width: Constants.Keyboard.micButtonSize,
+                        height: Constants.Keyboard.micButtonSize
+                    )
+                    .shadow(color: .orange.opacity(0.4), radius: 12, y: 4)
+                
+                // 麦克风 + 闪电图标
+                ZStack(alignment: .bottomTrailing) {
+                    Image(systemName: "mic.fill")
+                        .font(.system(size: 26, weight: .medium))
+                        .foregroundStyle(.white)
+                    
+                    Image(systemName: "bolt.fill")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(.yellow)
+                        .offset(x: 8, y: 6)
                 }
-                .foregroundStyle(.white)
-                .padding(.horizontal, 24)
-                .padding(.vertical, 12)
-                .background(Color.orange)
-                .clipShape(Capsule())
             }
-            
-            Text("后台服务已休眠，点击唤醒")
-                .font(.system(size: 12))
-                .foregroundStyle(.secondary)
         }
+        .buttonStyle(.plain)
     }
     
-    // MARK: - 麦克风按钮
+    // MARK: - 麦克风按钮 (beta.50: Tap to Toggle + 渐变视觉)
     
     private var micButton: some View {
         let isActive = state.phase == .recording
         
-        return Circle()
-            .fill(isActive ? Color.red : Color.blue)
-            .frame(
-                width: Constants.Keyboard.micButtonSize,
-                height: Constants.Keyboard.micButtonSize
-            )
-            .overlay {
+        return Button {
+            if isActive {
+                onRecordStop()
+            } else {
+                onRecordStart()
+            }
+        } label: {
+            ZStack {
+                // 录音时的外圈呼吸光晕
+                if isActive {
+                    Circle()
+                        .fill(
+                            RadialGradient(
+                                colors: [
+                                    Color.red.opacity(0.25),
+                                    Color.clear
+                                ],
+                                center: .center,
+                                startRadius: Constants.Keyboard.micButtonSize * 0.3,
+                                endRadius: Constants.Keyboard.micButtonSize * 0.75
+                            )
+                        )
+                        .frame(
+                            width: Constants.Keyboard.micButtonSize + 24,
+                            height: Constants.Keyboard.micButtonSize + 24
+                        )
+                        .scaleEffect(isPulsing ? 1.2 : 0.9)
+                }
+                
+                // 主按钮
+                Circle()
+                    .fill(
+                        isActive
+                            ? LinearGradient(
+                                colors: [Color.red, Color.orange.opacity(0.8)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                              )
+                            : LinearGradient(
+                                colors: [Color.indigo, Color.blue],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                              )
+                    )
+                    .frame(
+                        width: Constants.Keyboard.micButtonSize,
+                        height: Constants.Keyboard.micButtonSize
+                    )
+                    .shadow(
+                        color: isActive ? .red.opacity(0.35) : .indigo.opacity(0.3),
+                        radius: isActive ? 14 : 10,
+                        y: 4
+                    )
+                    .scaleEffect(isActive && isPulsing ? 1.08 : 1.0)
+                
+                // 麦克风图标
                 Image(systemName: isActive ? "mic.fill" : "mic")
                     .font(.system(size: 28, weight: .medium))
                     .foregroundStyle(.white)
             }
-            .scaleEffect(isActive ? 1.1 : 1.0)
-            .animation(.easeInOut(duration: 0.2), value: isActive)
-            .shadow(color: isActive ? .red.opacity(0.3) : .blue.opacity(0.2), radius: 8)
-            .gesture(
-                DragGesture(minimumDistance: 0)
-                    .onChanged { _ in
-                        if state.phase == .idle {
-                            onRecordStart()
-                        }
-                    }
-                    .onEnded { _ in
-                        if state.phase == .recording {
-                            onRecordStop()
-                        }
-                    }
-            )
-            .accessibilityLabel(isActive ? "松开结束录音" : "按住开始录音")
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(isActive ? "录音中，点击结束" : "点击开始说话")
+        .onChange(of: isActive) { _, newValue in
+            if newValue {
+                withAnimation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) {
+                    isPulsing = true
+                }
+            } else {
+                withAnimation(.easeOut(duration: 0.2)) {
+                    isPulsing = false
+                }
+            }
+        }
     }
     
     // MARK: - 底部工具栏
@@ -373,7 +401,7 @@ struct KeyboardView: View {
     }
 }
 
-// MARK: - 键盘波形视图
+// MARK: - 键盘波形视图 (beta.50: 渐变色波形)
 
 /// 简化版波形视图（键盘扩展专用，减少采样点）
 struct KeyboardWaveformView: View {
@@ -402,8 +430,14 @@ struct KeyboardWaveformView: View {
                 let rect = CGRect(x: x, y: y, width: barWidth, height: barHeight)
                 let path = Path(roundedRect: rect, cornerRadius: barWidth / 2)
                 
-                let opacity = 0.3 + Double(level) * 0.7
-                context.fill(path, with: .color(.blue.opacity(opacity)))
+                // beta.50: 渐变色波形（从 indigo 到 red，根据电平强度）
+                let intensity = Double(level)
+                let color = Color(
+                    red: 0.3 + intensity * 0.5,
+                    green: 0.2 + (1 - intensity) * 0.3,
+                    blue: 0.8 - intensity * 0.4
+                ).opacity(0.4 + intensity * 0.6)
+                context.fill(path, with: .color(color))
             }
         }
     }

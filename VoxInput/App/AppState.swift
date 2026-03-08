@@ -222,7 +222,7 @@ final class AppState {
         isPrimingAudio = false
 
         if success {
-            statusMessage = "后台语音守护已就绪"
+            statusMessage = "✅ 守护进程已就绪\n请点击左上角 ◀ 或滑动底部返回输入法"
         } else {
             statusMessage = "麦克风准备失败，请重试"
         }

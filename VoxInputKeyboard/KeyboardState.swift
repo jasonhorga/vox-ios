@@ -71,7 +71,6 @@ final class KeyboardState {
     private var lastResultID: Int = 0
     private var lastHeartbeatAt: TimeInterval = 0
 
-    private var openAppHandler: ((URL, String) -> Bool)?
     private var insertTextHandler: ((String) -> Void)?
 
     /// 当前会话追踪（用于屏蔽旧状态抖动 + 超时兜底）
@@ -82,14 +81,10 @@ final class KeyboardState {
     private var startupAckTimeoutTask: Task<Void, Never>?
     private var requestTimeoutTask: Task<Void, Never>?
 
-    /// 唤醒主 App 期间的状态锁，避免轮询状态机重复触发唤醒
-    private var isWakingUp: Bool = false
-
     // MARK: - Wiring
 
     /// 由 ViewController 注入桥接能力
-    func bindHandlers(openApp: @escaping (URL, String) -> Bool, insertText: @escaping (String) -> Void) {
-        self.openAppHandler = openApp
+    func bindHandlers(insertText: @escaping (String) -> Void) {
         self.insertTextHandler = insertText
     }
 
@@ -112,9 +107,6 @@ final class KeyboardState {
         clearRequestTracking()
         activeResetTask?.cancel()
         activeResetTask = nil
-        wakeupFallbackTask?.cancel()
-        wakeupFallbackTask = nil
-        isWakingUp = false
     }
 
     // MARK: - Environment
@@ -158,18 +150,15 @@ final class KeyboardState {
             return false
         }
 
-        // beta.46: 重置所有挂起状态
+        // beta.50: 重置所有挂起状态
         openURLDidFail = false
         activeResetTask?.cancel()
-        wakeupFallbackTask?.cancel()
 
-        // 守护进程睡眠或心跳超时 -> 极速闪跳唤醒
+        // beta.50: 守护进程休眠时不再编程式跳转，由 UI 层 SwiftUI Link 处理
         if shouldWakeMainApp() {
-            isWakingUp = true
-            phase = .processing
-            statusMessage = "正在唤醒 Vox Input..."
-            let _ = openMainAppForWakeup()
-            scheduleWakeupSilentFailureFallback()
+            openURLDidFail = true
+            phase = .error("后台服务已休眠")
+            statusMessage = "请点击唤醒按钮打开 Vox Input"
             return false
         }
 
@@ -194,7 +183,6 @@ final class KeyboardState {
         phase = .idle
         statusMessage = ""
         currentLevel = 0
-        openURLDidFail = false
     }
 
     // MARK: - Fake Waveform Animation
@@ -349,13 +337,12 @@ final class KeyboardState {
 
     private func syncPhaseWithDaemonState(_ state: String) {
         // beta.46: 🔒 如果已经处于 openURLDidFail 状态，锁定 UI 不被轮询覆盖
-        // 这是之前"错误界面闪一下就回到按住说话"的根因之一
+        // 这是之前"错误界面闪一下就回到空闲状态"的根因之一
         if openURLDidFail {
             // 唯一例外：守护进程恢复了（变成 idle/recording），说明用户已手动打开主 App
             if state == "recording" || state == "idle" {
                 // 守护进程已恢复，自动清除错误状态
                 openURLDidFail = false
-                isWakingUp = false
                 // 继续走下面的正常处理逻辑
             } else {
                 // 守护进程仍然不可用，保持错误 UI 不变
@@ -369,7 +356,6 @@ final class KeyboardState {
             startupAckTimeoutTask?.cancel()
             startupAckTimeoutTask = nil
             openURLDidFail = false
-            isWakingUp = false
             phase = .recording
             statusMessage = "录音中..."
 
@@ -395,14 +381,6 @@ final class KeyboardState {
             if isRequestInFlight, !hasSeenRecordingInCurrentRequest, !hasSentStopInCurrentRequest {
                 return
             }
-            // 守护进程恢复到 idle 且之前有 wakeup，说明唤醒成功
-            if isWakingUp {
-                isWakingUp = false
-                openURLDidFail = false
-                phase = .idle
-                statusMessage = ""
-                return
-            }
             // 自动恢复逻辑：当 phase 是 .error 且不需要唤醒 App 时
             if case .error = phase, !needsAppWakeup, !openURLDidFail {
                 clearRequestTracking()
@@ -415,9 +393,6 @@ final class KeyboardState {
             }
 
         case "sleeping", "dead":
-            // 🔒 唤醒期间不覆盖状态
-            if isWakingUp { return }
-            
             // 只在有活跃请求时才切换到错误状态
             // （idle 状态下守护进程睡眠是正常的，不需要显示错误）
             if isRequestInFlight || phase == .recording || phase == .processing {
@@ -454,65 +429,10 @@ final class KeyboardState {
         }
     }
 
-    /// beta.49: 简化——daemonState 已在 apply() 中经过心跳校准，僵尸状态已被标记为 dead
-    private func shouldWakeMainApp() -> Bool {
+    /// beta.50: 守护进程状态检测（internal，供 KeyboardView 访问）
+    /// daemonState 已在 apply() 中经过心跳校准，僵尸状态已被标记为 dead
+    func shouldWakeMainApp() -> Bool {
         return daemonState == "sleeping" || daemonState == "dead" || daemonState.isEmpty
-    }
-
-    private func openMainAppForWakeup() -> Bool {
-        guard let handler = openAppHandler,
-              let url = URL(string: "voxinput://record?source=keyboard&mode=wakeup")
-        else {
-            return false
-        }
-        return handler(url, "B")
-    }
-
-    /// 设置 Debug 跳转状态提示（供 UI 点击即时反馈）
-    func markDebugJumpStatus(method: String) {
-        statusMessage = "正在触发 方法 \(method.uppercased())..."
-    }
-
-    /// Debug 实验室：按指定方法触发跳转（A/B/C）
-    func triggerDebugJump(method: String) {
-        let normalized = method.uppercased()
-        guard let handler = openAppHandler,
-              let url = URL(string: "voxinput://record?source=keyboard&mode=wakeup")
-        else {
-            statusMessage = "跳转处理器未就绪"
-            return
-        }
-
-        markDebugJumpStatus(method: normalized)
-        let opened = handler(url, normalized)
-        if !opened {
-            statusMessage = "方法 \(normalized) 触发失败"
-        }
-    }
-
-    /// beta.46: 唤醒超时后的回退处理
-    /// 修复：不再提前清除 isWakingUp，让 syncPhaseWithDaemonState 的 sleeping/dead 分支不会重复触发
-    private var wakeupFallbackTask: Task<Void, Never>?
-    
-    private func scheduleWakeupSilentFailureFallback() {
-        wakeupFallbackTask?.cancel()
-        wakeupFallbackTask = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: 1_500_000_000)
-            guard !Task.isCancelled else { return }
-            guard let self else { return }
-            
-            // 只在仍然处于唤醒等待状态时才触发回退
-            guard self.isWakingUp else { return }
-            guard self.phase == .processing else { return }
-            
-            // 设置失败标记（这会锁住 syncPhaseWithDaemonState 不再覆盖 UI）
-            self.openURLDidFail = true
-            self.isWakingUp = false
-            self.phase = .error("无法自动唤醒 Vox Input")
-            self.statusMessage = "跳转被系统拦截，请手动打开应用"
-            // 注意：不调用 scheduleReset()，让错误 UI 持续显示
-            // 用户必须通过 SwiftUI Link 手动跳转或点击"重新录音"
-        }
     }
 
     // MARK: - Request Watchdog
@@ -569,13 +489,12 @@ final class KeyboardState {
         sendCommand(.cancel)
         clearRequestTracking()
 
-        SharedLogger.info("[KeyboardState] startup ack timeout, retry wakeup via openURL")
+        SharedLogger.info("[KeyboardState] startup ack timeout, showing wakeup Link")
 
-        isWakingUp = true
-        phase = .processing
-        statusMessage = "正在唤醒 Vox Input..."
-        let _ = openMainAppForWakeup()
-        scheduleWakeupSilentFailureFallback()
+        // beta.50: 不再编程式跳转，让 UI 展示 SwiftUI Link
+        openURLDidFail = true
+        phase = .error("后台服务无响应")
+        statusMessage = "请点击唤醒按钮打开 Vox Input"
     }
 
     private func handleRequestTimeoutIfNeeded() {
@@ -612,47 +531,14 @@ final class KeyboardState {
 
     // MARK: - Utils
 
-    /// beta.46: 用户手动打开 App 后重置状态，准备重新录音
+    /// beta.50: 用户手动打开 App 后重置状态，准备重新录音
     func resetToIdle() {
         clearRequestTracking()
         activeResetTask?.cancel()
         activeResetTask = nil
-        wakeupFallbackTask?.cancel()
-        wakeupFallbackTask = nil
-        isWakingUp = false
         phase = .idle
         statusMessage = ""
         openURLDidFail = false
-    }
-
-    /// beta.37: 所有自动 openURL 策略均失败后，由 ViewController 调用
-    func markOpenURLFailed() {
-        guard needsAppWakeup || phase == .processing else { return }
-        openURLDidFail = true
-        if phase == .processing {
-            phase = .error("后台服务已休眠，请手动打开一次 Vox App 重新激活")
-            statusMessage = "自动唤醒失败，请手动打开应用"
-        }
-        SharedLogger.error("[openURL] 所有自动策略失败，切换到手动跳转 UI")
-    }
-
-    /// beta.46: 从错误状态重试唤醒
-    func wakeupAppFromError() {
-        guard openURLDidFail || needsAppWakeup else { return }
-        isWakingUp = true
-        openURLDidFail = false
-        activeResetTask?.cancel()  // 取消任何挂起的 reset
-        phase = .processing
-        statusMessage = "正在唤醒 Vox Input..."
-        let opened = openMainAppForWakeup()
-        if !opened {
-            isWakingUp = false
-            openURLDidFail = true
-            phase = .error("自动唤醒失败")
-            statusMessage = "自动唤醒失败，请手动打开应用"
-            return
-        }
-        scheduleWakeupSilentFailureFallback()
     }
 
     /// beta.46: scheduleReset 必须尊重 openURLDidFail 和 needsAppWakeup 状态

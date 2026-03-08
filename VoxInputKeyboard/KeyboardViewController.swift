@@ -113,9 +113,6 @@ class KeyboardViewController: UIInputViewController {
     /// 设置 SwiftUI 键盘视图
     private func setupKeyboardView() {
         keyboardState.bindHandlers(
-            openApp: { [weak self] url, method in
-                self?.openApp(url: url, method: method) ?? false
-            },
             insertText: { [weak self] text in
                 self?.textDocumentProxy.insertText(text)
             }
@@ -136,9 +133,6 @@ class KeyboardViewController: UIInputViewController {
             },
             onRecordStop: { [weak self] in
                 self?.handleRecordStop()
-            },
-            onWakeupApp: { [weak self] in
-                self?.handleWakeupApp()
             }
         )
 
@@ -198,96 +192,6 @@ class KeyboardViewController: UIInputViewController {
         }
     }
     
-    /// 处理唤醒主 App（用于特定错误场景）
-    private func handleWakeupApp() {
-        Task { @MainActor in
-            keyboardState.wakeupAppFromError()
-        }
-    }
-
-    // MARK: - URL Opening
-
-    /// Debug 实验室：按方法标识选择 URL 跳转策略
-    /// - Parameters:
-    ///   - url: 目标 URL
-    ///   - method: "A"=Context, "B"=Responder, "C"=SharedApp
-    private func openApp(url: URL, method: String) -> Bool {
-        switch method.uppercased() {
-        case "A":
-            return openURLViaContext(url)
-        case "C":
-            return openURLViaSharedApplication(url)
-        case "B":
-            fallthrough
-        default:
-            return openURLViaResponder(url)
-        }
-    }
-
-    /// 方法 A: 仅使用 extensionContext.openURL:completionHandler:
-    private func openURLViaContext(_ url: URL) -> Bool {
-        guard let context = extensionContext else { return false }
-        let selector = NSSelectorFromString("openURL:completionHandler:")
-        guard context.responds(to: selector) else { return false }
-        context.perform(selector, with: url, with: nil)
-        SharedLogger.info("[openURL] 方法A成功: extensionContext")
-        return true
-    }
-
-    /// 方法 B: 仅遍历 UIResponder 调用 openURL:
-    private func openURLViaResponder(_ url: URL) -> Bool {
-        logResponderChain()
-        let selector = NSSelectorFromString("openURL:")
-        var responder: UIResponder? = self as UIResponder
-        while let current = responder {
-            if current !== self, current.responds(to: selector) {
-                current.perform(selector, with: url)
-                SharedLogger.info("[openURL] 方法B成功: UIResponder")
-                return true
-            }
-            responder = current.next
-        }
-        SharedLogger.error("[openURL] 方法B失败: 未找到可用 responder")
-        return false
-    }
-
-    /// 方法 C: 仅使用 UIApplication.shared perform(openURL:)
-    private func openURLViaSharedApplication(_ url: URL) -> Bool {
-        guard let appClass = NSClassFromString("UIApplication") as? NSObject.Type else {
-            SharedLogger.error("[openURL] 方法C失败: UIApplication class 不可用")
-            return false
-        }
-        let sharedSelector = NSSelectorFromString("sharedApplication")
-        guard appClass.responds(to: sharedSelector),
-              let app = appClass.perform(sharedSelector)?.takeUnretainedValue() as? NSObject
-        else {
-            SharedLogger.error("[openURL] 方法C失败: sharedApplication 不可用")
-            return false
-        }
-
-        let openSelector = NSSelectorFromString("openURL:")
-        guard app.responds(to: openSelector) else {
-            SharedLogger.error("[openURL] 方法C失败: openURL selector 不可用")
-            return false
-        }
-
-        app.perform(openSelector, with: url)
-        SharedLogger.info("[openURL] 方法C成功: UIApplication.shared")
-        return true
-    }
-
-    /// 诊断：打印完整的 UIResponder chain（帮助排查跳转失败）
-    private func logResponderChain() {
-        var chain: [String] = []
-        var r: UIResponder? = self
-        while let current = r {
-            chain.append(String(describing: type(of: current)))
-            r = current.next
-        }
-        SharedLogger.info("[openURL] Responder chain: \(chain.joined(separator: " → "))")
-    }
-
-
 }
 
 // MARK: - 键盘内容视图（根据权限状态切换）
@@ -301,7 +205,6 @@ private struct KeyboardContentView: View {
     let onGlobeKeyTap: () -> Void
     let onRecordStart: () -> Void
     let onRecordStop: () -> Void
-    let onWakeupApp: () -> Void
     
     var body: some View {
         Group {
@@ -325,8 +228,7 @@ private struct KeyboardContentView: View {
                     needsGlobeKey: needsGlobeKey,
                     onGlobeKeyTap: onGlobeKeyTap,
                     onRecordStart: onRecordStart,
-                    onRecordStop: onRecordStop,
-                    onWakeupApp: onWakeupApp
+                    onRecordStop: onRecordStop
                 )
             }
         }
