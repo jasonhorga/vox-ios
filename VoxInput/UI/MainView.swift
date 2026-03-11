@@ -20,6 +20,7 @@ struct MainView: View {
 
     /// 是否显示设置页
     @State private var showSettings = false
+    @State private var showDebugLog = false
 
     /// 是否需要显示权限引导
     @State private var showPermission = false
@@ -73,10 +74,18 @@ struct MainView: View {
                     } label: {
                         Image(systemName: "gear")
                     }
+                    .simultaneousGesture(
+                        LongPressGesture(minimumDuration: 1.5).onEnded { _ in
+                            showDebugLog = true
+                        }
+                    )
                 }
             }
             .sheet(isPresented: $showSettings) {
                 SettingsView()
+            }
+            .sheet(isPresented: $showDebugLog) {
+                DebugLogView()
             }
             .sheet(isPresented: $showHistory) {
                 HistoryView()
