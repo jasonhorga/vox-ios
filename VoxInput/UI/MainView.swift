@@ -359,7 +359,12 @@ struct MainView: View {
         guard url.host?.lowercased() == "record" else { return }
 
         // Sprint 3: 标记为 URL Scheme 唤醒，提示用户返回输入法
-        SharedLogger.info("[WakeupFlow] handleIncomingURL — url=\(url.absoluteString)")
+        // beta.60: 在 App 刚启动瞬间判断冷启动，此时 daemon 尚未写入心跳，判断准确
+        let heartbeat = AppGroup.sharedDefaults.double(forKey: AppGroup.ipcHeartbeatKey)
+        let heartbeatAge = Date().timeIntervalSince1970 - heartbeat
+        let isColdStart = heartbeat <= 0 || heartbeatAge > Constants.Daemon.heartbeatTimeout
+        appState.isWakeupColdStart = isColdStart
+        SharedLogger.info("[WakeupFlow] handleIncomingURL — url=\(url.absoluteString) isColdStart=\(isColdStart) heartbeat=\(heartbeat) heartbeatAge=\(String(format: "%.2f", heartbeatAge))s")
         appState.isURLSchemeActivation = true
 
         // beta.32: 异步启动音频准备流程

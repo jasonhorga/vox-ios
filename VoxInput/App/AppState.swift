@@ -208,6 +208,9 @@ final class AppState {
 
     /// Sprint 3: 标记本次激活是否由 URL Scheme 唤醒（区分启动来源）
     var isURLSchemeActivation: Bool = false
+    /// beta.60: 在 URL 唤醒时记录是否冷启动（App 刚打开，daemon 还没跑起来）
+    /// 必须在 handleIncomingURL 里设置，此时 daemon 尚未写入心跳，判断才准确
+    var isWakeupColdStart: Bool = false
 
     /// beta.32: 键盘闪跳唤醒主 App 后，异步准备音频会话
     /// 主 App 会短暂停留在前台并显示"正在获取麦克风..."，
@@ -217,13 +220,11 @@ final class AppState {
         isPrimingAudio = true
         statusMessage = "正在获取麦克风..."
 
-        // beta.60: 在 prime 之前判断是否冷启动
-        // 冷启动（daemon 心跳超时或从未存在）时 suspend 无法切回原 App，只显示引导
-        let heartbeat = AppGroup.sharedDefaults.double(forKey: AppGroup.ipcHeartbeatKey)
-        let heartbeatAge = Date().timeIntervalSince1970 - heartbeat
-        let isColdStart = heartbeat <= 0 || heartbeatAge > Constants.Daemon.heartbeatTimeout
+        // beta.60: isColdStart 由 handleIncomingURL 在 App 启动瞬间设置
+        // 不在这里重新读心跳——此时 daemon 已启动并写入心跳，判断会失准
+        let isColdStart = isWakeupColdStart
 
-        SharedLogger.info("[WakeupFlow] primeDaemonForKeyboardWakeup START — isURLScheme=\(isURLSchemeActivation) isPriming=\(isPrimingAudio) isColdStart=\(isColdStart) heartbeat=\(heartbeat) heartbeatAge=\(String(format: "%.1f", heartbeatAge))s")
+        SharedLogger.info("[WakeupFlow] primeDaemonForKeyboardWakeup START — isURLScheme=\(isURLSchemeActivation) isPriming=\(isPrimingAudio) isColdStart=\(isColdStart)")
 
         let success = await daemon.primeForBackgroundRecording()
 
