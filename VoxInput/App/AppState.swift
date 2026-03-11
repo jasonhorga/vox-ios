@@ -217,22 +217,35 @@ final class AppState {
         isPrimingAudio = true
         statusMessage = "正在获取麦克风..."
 
+        // beta.60: 在 prime 之前判断是否冷启动
+        // 冷启动（daemon 心跳超时或从未存在）时 suspend 无法切回原 App，只显示引导
+        let heartbeat = AppGroup.sharedDefaults.double(forKey: AppGroup.ipcHeartbeatKey)
+        let heartbeatAge = Date().timeIntervalSince1970 - heartbeat
+        let isColdStart = heartbeat <= 0 || heartbeatAge > Constants.Daemon.heartbeatTimeout
+
         let success = await daemon.primeForBackgroundRecording()
 
         isPrimingAudio = false
 
         if success {
             if isURLSchemeActivation {
-                statusMessage = "✅ 守护进程已就绪，自动返回..."
                 isURLSchemeActivation = false
-                
-                // 延迟 0.8s 等待系统转场动画彻底稳定，否则挂起可能退回桌面
-                Task {
-                    try? await Task.sleep(nanoseconds: 800_000_000)
-                    await MainActor.run {
-                        let selector = NSSelectorFromString("suspend")
-                        if UIApplication.shared.responds(to: selector) {
-                            UIApplication.shared.perform(selector)
+
+                if isColdStart {
+                    // 冷启动：prime 耗时长，iOS 转场上下文已失效，suspend 会退回桌面
+                    // 直接显示引导，让用户手动返回
+                    statusMessage = "✅ 守护进程已就绪，请返回原应用"
+                } else {
+                    // 热唤醒：prime 极快，转场上下文仍有效，可以自动切回
+                    statusMessage = "✅ 守护进程已就绪，自动返回..."
+                    // 延迟 0.8s 等待系统转场动画彻底稳定，否则挂起可能退回桌面
+                    Task {
+                        try? await Task.sleep(nanoseconds: 800_000_000)
+                        await MainActor.run {
+                            let selector = NSSelectorFromString("suspend")
+                            if UIApplication.shared.responds(to: selector) {
+                                UIApplication.shared.perform(selector)
+                            }
                         }
                     }
                 }
