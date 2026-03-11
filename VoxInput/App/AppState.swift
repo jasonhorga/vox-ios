@@ -223,7 +223,11 @@ final class AppState {
         let heartbeatAge = Date().timeIntervalSince1970 - heartbeat
         let isColdStart = heartbeat <= 0 || heartbeatAge > Constants.Daemon.heartbeatTimeout
 
+        SharedLogger.info("[WakeupFlow] primeDaemonForKeyboardWakeup START — isURLScheme=\(isURLSchemeActivation) isPriming=\(isPrimingAudio) isColdStart=\(isColdStart) heartbeat=\(heartbeat) heartbeatAge=\(String(format: "%.1f", heartbeatAge))s")
+
         let success = await daemon.primeForBackgroundRecording()
+
+        SharedLogger.info("[WakeupFlow] primeForBackgroundRecording DONE — success=\(success) isURLScheme=\(isURLSchemeActivation) isColdStart=\(isColdStart)")
 
         isPrimingAudio = false
 
@@ -234,14 +238,17 @@ final class AppState {
                 if isColdStart {
                     // 冷启动：prime 耗时长，iOS 转场上下文已失效，suspend 会退回桌面
                     // 直接显示引导，让用户手动返回
+                    SharedLogger.info("[WakeupFlow] cold-start → showing return guidance, NO suspend")
                     statusMessage = "✅ 守护进程已就绪，请返回原应用"
                 } else {
                     // 热唤醒：prime 极快，转场上下文仍有效，可以自动切回
+                    SharedLogger.info("[WakeupFlow] hot-wakeup → will suspend after 0.8s")
                     statusMessage = "✅ 守护进程已就绪，自动返回..."
                     // 延迟 0.8s 等待系统转场动画彻底稳定，否则挂起可能退回桌面
                     Task {
                         try? await Task.sleep(nanoseconds: 800_000_000)
                         await MainActor.run {
+                            SharedLogger.info("[WakeupFlow] executing suspend")
                             let selector = NSSelectorFromString("suspend")
                             if UIApplication.shared.responds(to: selector) {
                                 UIApplication.shared.perform(selector)
@@ -250,9 +257,11 @@ final class AppState {
                     }
                 }
             } else {
+                SharedLogger.info("[WakeupFlow] not URL-scheme activation, showing ready message only")
                 statusMessage = "✅ 守护进程已就绪"
             }
         } else {
+            SharedLogger.info("[WakeupFlow] prime FAILED")
             statusMessage = "麦克风准备失败，请重试"
             try? await Task.sleep(nanoseconds: UInt64(Constants.UI.toastDuration * 1_000_000_000))
             if recordingState == .idle {

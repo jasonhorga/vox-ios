@@ -321,10 +321,15 @@ struct MainView: View {
         // beta.60: 如果正在 priming（handleIncomingURL 已经启动），跳过重复触发
         // 根因：URL 到来时 handleIncomingURL 和 scenePhase.active 会同时触发，
         // 第二次 prime 完成很快（daemon 已热）→ isColdStart=false → 执行 suspend → 退回桌面
-        guard !appState.isPrimingAudio else { return }
+        SharedLogger.info("[WakeupFlow] scenePhaseChange active — isURLScheme=\(appState.isURLSchemeActivation) isPriming=\(appState.isPrimingAudio)")
+        guard !appState.isPrimingAudio else {
+            SharedLogger.info("[WakeupFlow] scenePhaseChange: already priming, skip")
+            return
+        }
 
         // Phase 3 fix: 仅在 URL 唤醒时显示 prime overlay；手动打开时静默 prime
         if appState.isURLSchemeActivation {
+            SharedLogger.info("[WakeupFlow] scenePhaseChange: URL-scheme activation, starting prime")
             Task {
                 await appState.primeDaemonForKeyboardWakeup(daemon: daemonService)
             }
@@ -345,11 +350,13 @@ struct MainView: View {
         guard url.host?.lowercased() == "record" else { return }
 
         // Sprint 3: 标记为 URL Scheme 唤醒，提示用户返回输入法
+        SharedLogger.info("[WakeupFlow] handleIncomingURL — url=\(url.absoluteString)")
         appState.isURLSchemeActivation = true
 
         // beta.32: 异步启动音频准备流程
         // 主 App 会显示"正在获取麦克风..."覆盖层，强制停留在前台
         // 直到音频会话 100% 确认激活后才允许退出
+        SharedLogger.info("[WakeupFlow] handleIncomingURL: starting prime task")
         Task {
             await appState.primeDaemonForKeyboardWakeup(daemon: daemonService)
         }
