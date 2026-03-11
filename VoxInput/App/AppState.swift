@@ -208,9 +208,12 @@ final class AppState {
 
     /// Sprint 3: 标记本次激活是否由 URL Scheme 唤醒（区分启动来源）
     var isURLSchemeActivation: Bool = false
-    /// beta.60: 在 URL 唤醒时记录是否冷启动（App 刚打开，daemon 还没跑起来）
-    /// 必须在 handleIncomingURL 里设置，此时 daemon 尚未写入心跳，判断才准确
+    /// beta.60: 记录此次 URL 唤醒是否是冷启动（App 从 not-running 被启动）
+    /// 由 MainView 在收到第一个 onOpenURL 时，根据 hasHandledFirstURL 标志判断
     var isWakeupColdStart: Bool = false
+    /// beta.60: App 本次生命周期内是否已经处理过第一个 URL
+    /// false = 这是 App 启动后第一个 URL，说明是冷启动
+    var hasHandledFirstURL: Bool = false
 
     /// beta.32: 键盘闪跳唤醒主 App 后，异步准备音频会话
     /// 主 App 会短暂停留在前台并显示"正在获取麦克风..."，

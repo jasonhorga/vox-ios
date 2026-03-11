@@ -359,12 +359,12 @@ struct MainView: View {
         guard url.host?.lowercased() == "record" else { return }
 
         // Sprint 3: 标记为 URL Scheme 唤醒，提示用户返回输入法
-        // beta.60: 在 App 刚启动瞬间判断冷启动，此时 daemon 尚未写入心跳，判断准确
-        let heartbeat = AppGroup.sharedDefaults.double(forKey: AppGroup.ipcHeartbeatKey)
-        let heartbeatAge = Date().timeIntervalSince1970 - heartbeat
-        let isColdStart = heartbeat <= 0 || heartbeatAge > Constants.Daemon.heartbeatTimeout
+        // beta.60: 冷启动判断：App 本次生命周期收到的第一个 URL = 冷启动
+        // 热唤醒（App 在后台）时 hasHandledFirstURL 已经是 true
+        let isColdStart = !appState.hasHandledFirstURL
+        appState.hasHandledFirstURL = true
         appState.isWakeupColdStart = isColdStart
-        SharedLogger.info("[WakeupFlow] handleIncomingURL — url=\(url.absoluteString) isColdStart=\(isColdStart) heartbeat=\(heartbeat) heartbeatAge=\(String(format: "%.2f", heartbeatAge))s")
+        SharedLogger.info("[WakeupFlow] handleIncomingURL — url=\(url.absoluteString) isColdStart=\(isColdStart) hasHandledFirstURL=\(appState.hasHandledFirstURL)")
         appState.isURLSchemeActivation = true
 
         // beta.32: 异步启动音频准备流程
