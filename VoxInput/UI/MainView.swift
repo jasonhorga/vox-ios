@@ -318,6 +318,11 @@ struct MainView: View {
         // 避免打断正在进行的录音或处理
         guard appState.recordingState == .idle else { return }
 
+        // beta.60: 如果正在 priming（handleIncomingURL 已经启动），跳过重复触发
+        // 根因：URL 到来时 handleIncomingURL 和 scenePhase.active 会同时触发，
+        // 第二次 prime 完成很快（daemon 已热）→ isColdStart=false → 执行 suspend → 退回桌面
+        guard !appState.isPrimingAudio else { return }
+
         // Phase 3 fix: 仅在 URL 唤醒时显示 prime overlay；手动打开时静默 prime
         if appState.isURLSchemeActivation {
             Task {
