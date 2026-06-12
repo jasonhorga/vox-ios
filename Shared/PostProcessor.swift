@@ -63,11 +63,15 @@ enum PostProcessor {
         // 获取 API 配置
         let apiKey: String
         let baseURL: String
-        
+        let model: String
+
         switch config.asrProvider {
         case .qwen:
             apiKey = config.qwenAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
             baseURL = Constants.Network.qwenBaseURL
+            // beta.61: DashScope 兼容模式没有 gpt-4o-mini，硬编码会必然失败（review H2）。
+            // 用 DashScope 的通用对话模型做翻译。
+            model = "qwen-plus"
         case .whisper:
             apiKey = config.whisperAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
             // Whisper API 用户通常也有 OpenAI chat completions 访问权限
@@ -75,17 +79,20 @@ enum PostProcessor {
             baseURL = config.whisperBaseURL
                 .replacingOccurrences(of: "/v1/audio/transcriptions", with: "/v1/chat/completions")
                 .replacingOccurrences(of: "/audio/transcriptions", with: "/chat/completions")
+            // OpenAI 兼容接口用 gpt-4o-mini
+            model = "gpt-4o-mini"
         }
-        
+
         guard !apiKey.isEmpty else {
             throw VoxError.apiKeyMissing
         }
-        
+
         return try await callLLM(
             text: text,
             systemPrompt: mode.systemPrompt,
             apiKey: apiKey,
-            baseURL: baseURL
+            baseURL: baseURL,
+            model: model
         )
     }
     
@@ -96,14 +103,15 @@ enum PostProcessor {
         text: String,
         systemPrompt: String,
         apiKey: String,
-        baseURL: String
+        baseURL: String,
+        model: String
     ) async throws -> String {
         guard let url = URL(string: baseURL) else {
             throw VoxError.asrAPIError("无效的 LLM API URL")
         }
-        
+
         let requestBody: [String: Any] = [
-            "model": "gpt-4o-mini",
+            "model": model,
             "messages": [
                 ["role": "system", "content": systemPrompt],
                 ["role": "user", "content": text]

@@ -44,9 +44,13 @@ final class SharedConfigStore {
     static let shared = SharedConfigStore()
     
     // MARK: - 存储后端
-    
+
     private let defaults: UserDefaults
-    
+
+    /// beta.61: reload()/批量加载期间置 true，阻止 didSet 把刚读出来的值又写回去。
+    /// 修复 review H1：reload 触发 didSet 写回 Keychain，读失败时会把真实 key 抹成 ""。
+    @ObservationIgnored private var isLoading = false
+
     // MARK: - 配置项（非敏感，存储在 App Group UserDefaults）
     
     /// 当前 ASR 提供商
@@ -93,12 +97,18 @@ final class SharedConfigStore {
     
     /// Qwen ASR API Key（Keychain 存储）
     var qwenAPIKey: String {
-        didSet { KeychainStore.write(value: qwenAPIKey, key: .qwenAPIKey) }
+        didSet {
+            guard !isLoading else { return }
+            KeychainStore.write(value: qwenAPIKey, key: .qwenAPIKey)
+        }
     }
-    
+
     /// Whisper API Key（Keychain 存储）
     var whisperAPIKey: String {
-        didSet { KeychainStore.write(value: whisperAPIKey, key: .whisperAPIKey) }
+        didSet {
+            guard !isLoading else { return }
+            KeychainStore.write(value: whisperAPIKey, key: .whisperAPIKey)
+        }
     }
     
     // MARK: - 存储键
@@ -238,6 +248,9 @@ final class SharedConfigStore {
     /// 从 App Group UserDefaults 和 Keychain 强制重载所有配置
     /// 用于确保跨进程（主 App ↔ 键盘扩展）读取最新数据
     func reload() {
+        isLoading = true
+        defer { isLoading = false }
+
         asrProvider = ASRProviderType(
             rawValue: defaults.string(forKey: Key.asrProvider.rawValue) ?? ""
         ) ?? .qwen
@@ -263,18 +276,20 @@ final class SharedConfigStore {
             rawValue: defaults.string(forKey: Key.daemonStandbyDuration.rawValue) ?? ""
         ) ?? .minutes10
 
-        qwenAPIKey = KeychainStore.read(key: .qwenAPIKey) ?? ""
-        whisperAPIKey = KeychainStore.read(key: .whisperAPIKey) ?? ""
+        // beta.61: 仅在 Keychain 读取成功时覆盖内存值；读失败返回 nil 时保留原值，
+        // 避免把真实 key 抹成 ""（配合 isLoading：reload 期间一律不写回 Keychain）。
+        if let qwen = KeychainStore.read(key: .qwenAPIKey) { qwenAPIKey = qwen }
+        if let whisper = KeychainStore.read(key: .whisperAPIKey) { whisperAPIKey = whisper }
     }
-    
+
     private func saveString(_ value: String, forKey key: Key) {
+        guard !isLoading else { return }
         defaults.set(value, forKey: key.rawValue)
-        defaults.synchronize()
     }
-    
+
     private func saveBool(_ value: Bool, forKey key: Key) {
+        guard !isLoading else { return }
         defaults.set(value, forKey: key.rawValue)
-        defaults.synchronize()
     }
     
     /// 重置所有配置为默认值

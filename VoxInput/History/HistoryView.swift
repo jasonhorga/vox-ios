@@ -25,6 +25,11 @@ struct HistoryView: View {
     
     /// Sprint 3: 当前正在重试识别的记录 ID
     @State private var retryingItemID: UUID?
+
+    /// beta.61: 长生命周期的网络监控（review N2）。
+    /// 旧代码在重试时新建 NetworkMonitor()，其 isConnected 恒为初始值 true，
+    /// 导致离线重试也被路由到云端 ASR 而必然失败。
+    @State private var networkMonitor = NetworkMonitor()
     
     /// 过滤后的记录
     private var filteredItems: [HistoryItem] {
@@ -146,18 +151,17 @@ struct HistoryView: View {
     
     /// Sprint 3: 手动重试 ASR 识别
     private func retryTranscription(for item: HistoryItem) {
-        guard let audioPath = item.audioFilePath else { return }
-        let audioURL = URL(fileURLWithPath: audioPath)
-        guard FileManager.default.fileExists(atPath: audioPath) else { return }
-        
+        guard let stored = item.audioFilePath, let audioURL = SavedAudioStore.resolve(stored) else { return }
+        guard FileManager.default.fileExists(atPath: audioURL.path) else { return }
+
         retryingItemID = item.id
-        
+
         Task {
             do {
                 let text = try await ASRFactory.transcribe(
                     audioURL: audioURL,
                     config: .shared,
-                    networkAvailable: NetworkMonitor().isConnected
+                    networkAvailable: networkMonitor.isConnected
                 )
                 let formatted = TextFormatter.format(text)
                 historyManager.updateText(for: item.id, text: formatted, provider: "重试识别")

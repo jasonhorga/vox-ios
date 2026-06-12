@@ -88,9 +88,9 @@ final class HistoryManager {
         let old = items[index]
         items[index] = HistoryItem(id: old.id, text: text, timestamp: old.timestamp, provider: provider, audioFilePath: nil)
         
-        // 识别成功后删除原音频文件
-        if let path = old.audioFilePath {
-            try? FileManager.default.removeItem(atPath: path)
+        // 识别成功后删除原音频文件（解析文件名/兼容旧绝对路径，review M2）
+        if let stored = old.audioFilePath, let url = SavedAudioStore.resolve(stored) {
+            try? FileManager.default.removeItem(at: url)
         }
         
         saveItems()
@@ -144,5 +144,24 @@ final class HistoryManager {
         } catch {
             // 编码失败时静默处理
         }
+    }
+}
+
+/// beta.61: 已保存音频的存放与解析。历史记录只持久化"文件名"，避免存绝对路径——
+/// iOS 容器路径（…/Application/<UUID>/）会随重装/恢复/更新而变化、导致旧路径失效（review M2）。
+enum SavedAudioStore {
+    /// Documents/SavedAudio 目录
+    static var directory: URL? {
+        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?
+            .appendingPathComponent("SavedAudio", isDirectory: true)
+    }
+
+    /// 把存储值解析为当前可用的文件 URL。
+    /// 新格式 = 纯文件名；旧格式 = 绝对路径（兼容读取，可能已失效）。
+    static func resolve(_ stored: String) -> URL? {
+        if stored.contains("/") {
+            return URL(fileURLWithPath: stored)  // 旧数据：绝对路径
+        }
+        return directory?.appendingPathComponent(stored)
     }
 }

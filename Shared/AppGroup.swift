@@ -39,6 +39,8 @@ enum AppGroup {
     static let ipcResultKey = "vox.ipc.result"
     /// 结果序列号（每次出新结果递增）
     static let ipcResultIDKey = "vox.ipc.result_id"
+    /// 结果产生时间戳（秒）。键盘据此判定结果是否陈旧，避免越会话/越 App 误注入（review H3）
+    static let ipcResultAtKey = "vox.ipc.result_at"
 
     /// 守护进程心跳时间戳（秒）
     static let ipcHeartbeatKey = "vox.ipc.heartbeat"

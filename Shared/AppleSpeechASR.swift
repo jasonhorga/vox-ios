@@ -78,36 +78,78 @@ final class AppleSpeechASR: ASRProvider {
         request: SFSpeechURLRecognitionRequest
     ) async throws -> String {
         try await withThrowingTaskGroup(of: String.self) { group in
-            group.addTask { [timeout] in
-                // 识别任务
-                let result = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<SFSpeechRecognitionResult, Error>) in
-                    recognizer.recognitionTask(with: request) { result, error in
-                        if let error {
-                            continuation.resume(throwing: VoxError.asrAPIError("本地识别失败: \(error.localizedDescription)"))
-                            return
+            group.addTask {
+                // beta.61: 持有识别任务，超时/取消时取消它并确保 continuation 恰好 resume 一次，
+                // 避免识别器后台空转与 continuation 泄漏（review L1）。
+                let box = SpeechRecognitionBox()
+                let result: SFSpeechRecognitionResult = try await withTaskCancellationHandler {
+                    try await withCheckedThrowingContinuation { continuation in
+                        let task = recognizer.recognitionTask(with: request) { result, error in
+                            if let error {
+                                box.finish(.failure(VoxError.asrAPIError("本地识别失败: \(error.localizedDescription)")))
+                                return
+                            }
+                            guard let result, result.isFinal else { return }  // 忽略 partial
+                            box.finish(.success(result))
                         }
-                        
-                        guard let result, result.isFinal else {
-                            // 等待最终结果，partial results 被忽略
-                            return
-                        }
-                        
-                        continuation.resume(returning: result)
+                        box.attach(continuation: continuation, task: task)
                     }
+                } onCancel: {
+                    box.cancel()
                 }
-                
                 return result.bestTranscription.formattedString
             }
-            
+
             group.addTask { [timeout] in
                 // 超时任务
                 try await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
                 throw VoxError.asrTimeout
             }
-            
+
             let result = try await group.next()!
             group.cancelAll()
             return try ASRResultValidator.validate(result)
         }
+    }
+}
+
+/// beta.61: 串行化 SFSpeechRecognitionTask 的 continuation，保证恰好 resume 一次，
+/// 并在取消时真正取消底层识别任务（review L1）。
+private final class SpeechRecognitionBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<SFSpeechRecognitionResult, Error>?
+    private var task: SFSpeechRecognitionTask?
+    private var isCancelled = false
+
+    func attach(continuation: CheckedContinuation<SFSpeechRecognitionResult, Error>, task: SFSpeechRecognitionTask) {
+        lock.lock()
+        if isCancelled {
+            lock.unlock()
+            task.cancel()
+            continuation.resume(throwing: CancellationError())
+            return
+        }
+        self.continuation = continuation
+        self.task = task
+        lock.unlock()
+    }
+
+    func finish(_ outcome: Result<SFSpeechRecognitionResult, Error>) {
+        lock.lock()
+        guard let cont = continuation else { lock.unlock(); return }
+        continuation = nil
+        lock.unlock()
+        cont.resume(with: outcome)
+    }
+
+    func cancel() {
+        lock.lock()
+        isCancelled = true
+        let cont = continuation
+        continuation = nil
+        let runningTask = task
+        lock.unlock()
+        runningTask?.cancel()
+        cont?.resume(throwing: CancellationError())
     }
 }
