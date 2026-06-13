@@ -289,3 +289,14 @@ final class AppState {
         networkMonitor.isConnected
     }
 }
+
+extension RecordButtonPhase {
+    /// 主 App 录音状态 → 按钮阶段（主 App 无独立 done 态）
+    init(_ state: RecordingState) {
+        switch state {
+        case .idle:       self = .idle
+        case .recording:  self = .recording
+        case .processing: self = .processing
+        }
+    }
+}

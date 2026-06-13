@@ -41,11 +41,8 @@ struct MainView: View {
                     // 状态文字
                     statusSection
 
-                    // 波形视图
-                    waveformSection
-
                     // 录音按钮
-                    recordButton
+                    recordControl
 
                     // 结果展示
                     resultSection
@@ -180,71 +177,27 @@ struct MainView: View {
         .frame(height: 80)
     }
 
-    /// 波形视图区域
-    private var waveformSection: some View {
-        WaveformView(
-            levels: appState.audioRecorder.levelHistory,
-            isRecording: appState.recordingState == .recording,
-            barColor: .red
-        )
-        .padding(.horizontal)
-        .opacity(appState.recordingState == .recording ? 1 : 0.3)
-        .animation(.easeInOut(duration: 0.3), value: appState.recordingState)
-    }
-
     /// 录音按钮
-    /// 按住开始录音，松开停止
-    private var recordButton: some View {
-        let isRecording = appState.recordingState == .recording
+    /// 点击切换录音；长按（按住）开始录音
+    private var recordControl: some View {
         let isProcessing = appState.recordingState == .processing
-
         return Button {
             // 点击切换模式（tap toggle）
-            Task {
-                await appState.toggleRecording()
-            }
+            Task { await appState.toggleRecording() }
         } label: {
-            ZStack {
-                // 外圈
-                Circle()
-                    .fill(isRecording ? Color.red.opacity(0.2) : Color.gray.opacity(0.1))
-                    .frame(width: Constants.UI.recordButtonSize + 20,
-                           height: Constants.UI.recordButtonSize + 20)
-
-                // 内圈
-                Circle()
-                    .fill(isRecording ? Color.red : Color.red.opacity(0.8))
-                    .frame(width: Constants.UI.recordButtonSize,
-                           height: Constants.UI.recordButtonSize)
-                    .scaleEffect(isRecording ? 1.1 : 1.0)
-
-                // 图标
-                if isRecording {
-                    // 录音中显示方块（停止图标）
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(.white)
-                        .frame(width: 24, height: 24)
-                } else {
-                    Image(systemName: "mic.fill")
-                        .font(.system(size: 28))
-                        .foregroundStyle(.white)
+            RecordButton(phase: RecordButtonPhase(appState.recordingState),
+                         size: Constants.UI.recordButtonSize)
+        }
+        .buttonStyle(.plain)
+        .disabled(isProcessing)
+        .sensoryFeedback(.impact(flexibility: .solid), trigger: appState.recordingState == .recording)
+        .simultaneousGesture(
+            // 长按手势：按住开始录音
+            LongPressGesture(minimumDuration: 0.2).onEnded { _ in
+                if appState.recordingState == .idle {
+                    Task { await appState.startRecording() }
                 }
             }
-        }
-        .disabled(isProcessing)
-        .opacity(isProcessing ? 0.5 : 1.0)
-        .animation(.spring(response: 0.3), value: isRecording)
-        .sensoryFeedback(.impact(flexibility: .solid), trigger: isRecording)
-        .simultaneousGesture(
-            // 长按手势：按住录音，松开停止
-            LongPressGesture(minimumDuration: 0.2)
-                .onEnded { _ in
-                    if appState.recordingState == .idle {
-                        Task {
-                            await appState.startRecording()
-                        }
-                    }
-                }
         )
     }
 
