@@ -94,17 +94,19 @@ struct SettingsView: View {
                     Text("智能整理：用 AI 去掉口头禅、顺语序、按口述意图排版（需联网、消耗 API 调用，离线自动跳过）。翻译：识别完成后翻成目标语言。")
                 }
 
-                // MARK: - 后台语音守护
+                // MARK: - 免跳转 / 后台常驻
                 Section {
-                    Picker("后台语音待机时长", selection: $config.daemonStandbyDuration) {
+                    Picker("后台常驻时长", selection: $config.daemonStandbyDuration) {
                         ForEach(DaemonStandbyDuration.allCases, id: \.self) { duration in
                             Text(duration.displayName).tag(duration)
                         }
                     }
                 } header: {
-                    Text("后台语音守护")
+                    Text("免跳转 / 后台常驻")
                 } footer: {
-                    Text("主 App 作为后台守护进程时，空闲超过该时长将自动休眠并释放音频会话")
+                    Text("键盘要打开麦克风必须先切到主 App（iOS 的限制）。让主 App 在后台常驻得越久，"
+                        + "越多次听写能「免跳转」——直接录、并自动切回输入框；代价是常驻期间系统麦克风指示灯常亮、更耗电。"
+                        + "「始终常驻」跳转最少、最费电；较短时长更省电，但空闲超时后再用需切一次 App。")
                 }
                 
                 // MARK: - 关于

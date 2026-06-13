@@ -18,9 +18,9 @@ enum DaemonStandbyDuration: String, CaseIterable, Codable {
 
     var displayName: String {
         switch self {
-        case .minutes3: return "3 分钟"
-        case .minutes10: return "10 分钟"
-        case .never: return "永久待机"
+        case .minutes3: return "3 分钟后休眠（最省电）"
+        case .minutes10: return "10 分钟后休眠"
+        case .never: return "始终常驻（免跳转）"
         }
     }
 
