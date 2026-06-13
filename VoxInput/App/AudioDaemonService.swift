@@ -383,11 +383,15 @@ final class AudioDaemonService {
             // beta.61: 键盘路径也尊重翻译设置（review H2：此前 daemon 完全不翻译，
             // 与主 App 行为不一致）。翻译失败降级为原文，绝不丢弃已识别结果。
             var processed = rawText
-            if config.translationMode != .none && networkMonitor.isConnected {
+            if (config.smartCleanup || config.translationMode != .none) && networkMonitor.isConnected {
                 do {
-                    processed = try await PostProcessor.process(text: rawText, mode: config.translationMode)
+                    processed = try await PostProcessor.process(
+                        text: rawText,
+                        cleanup: config.smartCleanup,
+                        translation: config.translationMode
+                    )
                 } catch {
-                    SharedLogger.error("daemon 翻译失败，降级为原文: \(error.localizedDescription)")
+                    SharedLogger.error("daemon 智能整理/翻译失败，降级为原文: \(error.localizedDescription)")
                     processed = rawText
                 }
             }
@@ -396,12 +400,25 @@ final class AudioDaemonService {
             // 识别成功：删除临时音频
             try? FileManager.default.removeItem(at: url)
 
+            // beta.63: 请求若已被取消（键盘 resultTimeout 触发 .cancel），不要再发布迟到结果，
+            // 否则会在用户已放弃、可能切到别的 App 后被当作新结果注入（H3 幽灵注入）。
+            guard !Task.isCancelled else {
+                endBackgroundKeepAlive()
+                return
+            }
+
             publishResult(formatted)
             HistoryManager.shared.add(text: formatted, provider: providerName)
             publishState(.idle, clearError: true)
             touchActivity()
             SharedLogger.info("daemon processing done, provider: \(providerName)")
         } catch {
+            // beta.63: 取消（用户/键盘超时）不算识别失败——不保存音频、不报错
+            if Task.isCancelled {
+                try? FileManager.default.removeItem(at: url)
+                endBackgroundKeepAlive()
+                return
+            }
             // 识别失败：保存音频到 Documents 目录，兜底存储
             let savedPath = saveAudioToDocuments(tempURL: url)
             try? FileManager.default.removeItem(at: url)

@@ -115,9 +115,10 @@ enum Constants {
         /// 键盘轮询 IPC 状态间隔（秒）
         static let ipcPollInterval: TimeInterval = 0.20
         /// 键盘等待后台守护进程返回结果超时（秒）
-        /// beta.62: 10s → 25s，作为失败兜底需覆盖 daemon 单次 ASR 最坏耗时(~25s URLSession)，
-        /// 避免合法但偏慢的识别被键盘提前判超时丢弃（review M4）。正常结果 1–3s 事件驱动返回，不受影响。
-        static let resultTimeout: TimeInterval = 25.0
+        /// beta.62: 10s→25s（覆盖 ASR 最坏耗时）；beta.63: 25s→30s，再覆盖默认开的智能整理多出的一次 LLM 调用，
+        /// 减少「ASR+整理」偏慢时被键盘提前判超时（review M4 / 智能整理 spec）。
+        /// 配套：daemon 在请求被取消后不再发布迟到结果（AudioDaemonService.processAudio），杜绝 H3 幽灵注入。
+        static let resultTimeout: TimeInterval = 30.0
         /// beta.61: 结果时效（秒）。早于此值的 IPC 结果视为陈旧、不再注入，
         /// 防止上一次会话的转写在之后、甚至在别的 App 输入框里被凭空插入（review H3）。
         static let resultStaleAfter: TimeInterval = 60.0

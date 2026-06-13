@@ -77,6 +77,12 @@ final class ConfigStore {
         set { store.translationMode = newValue }
     }
 
+    /// 智能整理开关
+    var smartCleanup: Bool {
+        get { store.smartCleanup }
+        set { store.smartCleanup = newValue }
+    }
+
     /// 后台守护进程待机时长
     var daemonStandbyDuration: DaemonStandbyDuration {
         get { store.daemonStandbyDuration }

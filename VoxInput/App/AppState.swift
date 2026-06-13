@@ -118,17 +118,19 @@ final class AppState {
             )
 
             var processedText = rawText
+            let cleanup = config.smartCleanup
             let translationMode = config.translationMode
-            if translationMode != .none && networkMonitor.isConnected {
-                statusMessage = "正在翻译..."
+            if (cleanup || translationMode != .none) && networkMonitor.isConnected {
+                statusMessage = cleanup ? "正在整理..." : "正在翻译..."
                 do {
                     processedText = try await PostProcessor.process(
                         text: rawText,
-                        mode: translationMode
+                        cleanup: cleanup,
+                        translation: translationMode
                     )
                 } catch {
-                    // beta.61: 翻译失败不丢弃已识别文本，降级为原文输出（review H2）
-                    SharedLogger.error("翻译失败，降级为原文输出: \(error.localizedDescription)")
+                    // beta.63: 整理/翻译失败不丢弃已识别文本，降级为原文（沿用 H2）
+                    SharedLogger.error("智能整理/翻译失败，降级为原文: \(error.localizedDescription)")
                     processedText = rawText
                 }
             }
