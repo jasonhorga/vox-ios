@@ -67,10 +67,8 @@ final class AudioRecorder: NSObject {
     
     // MARK: - 稳定性常量
     
-    /// 最长录音时间（秒），超时自动停止
-    /// Sprint 3: 放宽到 1 小时，录音只能由用户手动停止
-    private static let maxRecordingDuration: TimeInterval = 3600.0
-    
+    // 最长录音时长集中在 Constants.Audio.maxRecordingDuration（M7: 由 1h 收紧到 10min，到点自动停止）
+
     /// 录音失败最大重试次数
     private static let maxRetryCount: Int = 2
     
@@ -233,9 +231,9 @@ final class AudioRecorder: NSObject {
         meterTimer = nil
     }
     
-    /// 启动超时定时器（最长 60 秒自动停止）
+    /// 启动超时定时器（到 Constants.Audio.maxRecordingDuration 自动停止）
     private func startTimeoutTimer() {
-        timeoutTimer = Timer.scheduledTimer(withTimeInterval: Self.maxRecordingDuration, repeats: false) { [weak self] _ in
+        timeoutTimer = Timer.scheduledTimer(withTimeInterval: Constants.Audio.maxRecordingDuration, repeats: false) { [weak self] _ in
             guard let self, self.isRecording else { return }
             self.onMaxDurationReached?()
         }
