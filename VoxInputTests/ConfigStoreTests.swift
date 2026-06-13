@@ -1,29 +1,34 @@
 // ConfigStoreTests.swift
 // VoxInputTests
 //
-// ConfigStore / SharedConfigStore 单元测试
-// 注意：ConfigStore 是 SharedConfigStore 的薄包装层，
-// 两者均为单例且依赖 App Group + Keychain。
-// 测试通过 ConfigStore.shared 进行，测试前后重置为默认值。
+// SharedConfigStore 单元测试。
+// M1: 通过注入的 InMemorySecretStore + 隔离的 UserDefaults suite 进行测试，
+// 不再触碰真实 App Group UserDefaults / Keychain（ConfigStore 仅为薄代理，不再测）。
 
 import XCTest
 @testable import VoxInput
 
 final class ConfigStoreTests: XCTestCase {
 
-    private var config: ConfigStore!
+    private var suiteName: String!
+    private var defaults: UserDefaults!
+    private var secrets: InMemorySecretStore!
+    private var config: SharedConfigStore!
 
     override func setUp() {
         super.setUp()
-        config = ConfigStore.shared
-        // 重置为默认值，确保测试隔离
-        config.resetAll()
+        suiteName = "test.config.\(UUID().uuidString)"
+        defaults = UserDefaults(suiteName: suiteName)!
+        secrets = InMemorySecretStore()
+        config = SharedConfigStore(defaults: defaults, secrets: secrets)
     }
 
     override func tearDown() {
-        // 恢复默认值
-        config.resetAll()
+        defaults.removePersistentDomain(forName: suiteName)
         config = nil
+        secrets = nil
+        defaults = nil
+        suiteName = nil
         super.tearDown()
     }
 
@@ -155,5 +160,19 @@ final class ConfigStoreTests: XCTestCase {
     func testLanguage_setAndGet() {
         config.language = "zh-CN"
         XCTAssertEqual(config.language, "zh-CN")
+    }
+
+    // MARK: - H1 no-clobber：reload 在 Keychain 读失败时不抹空已有 key
+
+    func testReloadDoesNotClobberKeyOnFailedKeychainRead() {
+        let secrets = InMemorySecretStore()
+        let cfg = SharedConfigStore(
+            defaults: UserDefaults(suiteName: "test.clobber.\(UUID().uuidString)")!,
+            secrets: secrets
+        )
+        cfg.qwenAPIKey = "sk-real-key"
+        secrets.failReads = true        // 模拟 Keychain 读失败
+        cfg.reload()
+        XCTAssertEqual(cfg.qwenAPIKey, "sk-real-key")  // 读失败时内存值保留、未被抹空
     }
 }
