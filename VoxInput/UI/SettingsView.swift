@@ -20,6 +20,7 @@ struct SettingsView: View {
     @State private var whisperKeyInput: String = ""
     @State private var whisperURLInput: String = ""
     @State private var whisperModelInput: String = ""
+    @State private var chatModelInput: String = ""
     
     /// 显示保存成功提示
     @State private var showSaveConfirmation: Bool = false
@@ -72,10 +73,15 @@ struct SettingsView: View {
                         TextField("模型名称", text: $whisperModelInput)
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
+
+                        TextField("对话模型（整理/翻译用）", text: $chatModelInput)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
                     } header: {
                         Text("Whisper API 配置")
                     } footer: {
-                        Text("支持 OpenAI Whisper 及兼容接口（Groq 等）")
+                        Text("支持 OpenAI Whisper 及兼容接口（Groq 等）。"
+                            + "对话模型用于智能整理/翻译后处理，需所选端点支持该 Chat 模型。")
                     }
                 }
                 
@@ -187,6 +193,7 @@ struct SettingsView: View {
         whisperKeyInput = config.whisperAPIKey
         whisperURLInput = config.whisperBaseURL
         whisperModelInput = config.whisperModel
+        chatModelInput = config.chatModel
     }
     
     /// 保存设置到 ConfigStore
@@ -197,7 +204,9 @@ struct SettingsView: View {
         config.whisperAPIKey = whisperKeyInput.trimmingCharacters(in: .whitespacesAndNewlines)
         config.whisperBaseURL = whisperURLInput.trimmingCharacters(in: .whitespacesAndNewlines)
         config.whisperModel = whisperModelInput.trimmingCharacters(in: .whitespacesAndNewlines)
-        
+        let trimmedChatModel = chatModelInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        config.chatModel = trimmedChatModel.isEmpty ? "gpt-4o-mini" : trimmedChatModel
+
         // 显示保存确认
         withAnimation {
             showSaveConfirmation = true

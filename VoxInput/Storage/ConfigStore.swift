@@ -58,7 +58,13 @@ final class ConfigStore {
         get { store.qwenModel }
         set { store.qwenModel = newValue }
     }
-    
+
+    /// 对话模型名称（智能整理/翻译后处理用）
+    var chatModel: String {
+        get { store.chatModel }
+        set { store.chatModel = newValue }
+    }
+
     /// 是否已完成首次设置
     var hasCompletedSetup: Bool {
         get { store.hasCompletedSetup }
