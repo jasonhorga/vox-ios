@@ -47,12 +47,9 @@ enum Constants {
     enum ASR {
         /// ASR 请求超时时间（秒）- 主 App
         static let timeout: TimeInterval = 25.0
-        /// ASR 请求超时时间（秒）- 键盘扩展（更短以节省内存）
-        static let keyboardTimeout: TimeInterval = 15.0
         /// 最大重试次数
         static let maxRetries: Int = 2
-        /// 键盘扩展最大重试次数（更少以避免超时）
-        static let keyboardMaxRetries: Int = 1
+        // beta.61: 移除了 keyboardTimeout / keyboardMaxRetries——远控架构后键盘不再自行转写，二者已无引用（review L7）
         /// 初始重试间隔（秒）
         static let initialRetryDelay: TimeInterval = 0.8
         /// 最小有效结果长度（字符）
@@ -118,7 +115,12 @@ enum Constants {
         /// 键盘轮询 IPC 状态间隔（秒）
         static let ipcPollInterval: TimeInterval = 0.20
         /// 键盘等待后台守护进程返回结果超时（秒）
-        static let resultTimeout: TimeInterval = 10.0
+        /// beta.62: 10s → 25s，作为失败兜底需覆盖 daemon 单次 ASR 最坏耗时(~25s URLSession)，
+        /// 避免合法但偏慢的识别被键盘提前判超时丢弃（review M4）。正常结果 1–3s 事件驱动返回，不受影响。
+        static let resultTimeout: TimeInterval = 25.0
+        /// beta.61: 结果时效（秒）。早于此值的 IPC 结果视为陈旧、不再注入，
+        /// 防止上一次会话的转写在之后、甚至在别的 App 输入框里被凭空插入（review H3）。
+        static let resultStaleAfter: TimeInterval = 60.0
         /// 键盘等待守护进程启动确认超时（秒）
         /// beta.37: 从 2s 增加到 5s，给 daemon 更多重试时间
         /// beta.53: 从 5s 减少到 0.5s，实现零延迟快速跳转

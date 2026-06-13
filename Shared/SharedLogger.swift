@@ -97,7 +97,9 @@ enum SharedLogger {
         case .warning:  osLogType = .default
         case .error:    osLogType = .error
         }
-        os_log("%{public}@", log: osLog, type: osLogType, "[\(level.rawValue)] \(message)")
+        // beta.61: 用 %{private}@ 避免在系统 Console/sysdiagnose 中明文暴露语音相关内容（review L6）。
+        // App 内的 DebugLogView 仍可读取 App Group 日志文件，开发调试不受影响。
+        os_log("%{private}@", log: osLog, type: osLogType, "[\(level.rawValue)] \(message)")
         
         // 2. 异步写入 App Group 日志文件
         writeQueue.async {
@@ -119,20 +121,21 @@ enum SharedLogger {
         guard let data = logLine.data(using: .utf8) else { return }
         
         let fm = FileManager.default
-        
-        // 如果文件不存在，创建新文件
-        if !fm.fileExists(atPath: fileURL.path) {
-            fm.createFile(atPath: fileURL.path, contents: data)
-            return
-        }
-        
-        // 检查文件大小，必要时轮转
+
+        // beta.61: 先按大小轮转，再判断文件是否存在——轮转会把当前文件改名，
+        // 旧顺序（先判存在→后轮转）会导致轮转后这一行被静默丢弃（review L2）。
         if let attrs = try? fm.attributesOfItem(atPath: fileURL.path),
            let size = attrs[.size] as? Int,
            size > maxLogFileSize {
             rotateLogFile()
         }
-        
+
+        // 文件不存在（首次写或刚轮转过）→ 直接以本行内容创建，不丢行
+        if !fm.fileExists(atPath: fileURL.path) {
+            fm.createFile(atPath: fileURL.path, contents: data)
+            return
+        }
+
         // 追加写入
         if let handle = try? FileHandle(forWritingTo: fileURL) {
             handle.seekToEndOfFile()

@@ -21,6 +21,7 @@ private struct IPCSnapshot {
     let heartbeat: TimeInterval
     let resultID: Int
     let resultText: String?
+    let resultAt: TimeInterval
 }
 
 @Observable
@@ -91,6 +92,7 @@ final class KeyboardState {
     func activate() {
         config.reload()
         checkEnvironment()
+        bootstrapLastResultID()
         startIPCMonitoringIfNeeded()
         startDarwinStateObserverIfNeeded()
         updateFromIPC()
@@ -109,10 +111,10 @@ final class KeyboardState {
     // MARK: - Environment
 
     func checkEnvironment(systemHasFullAccess: Bool? = nil) {
+        // beta.61: 只信任 UIInputViewController.hasFullAccess 传入的权威值（review M5）。
+        // 旧的 probeFullAccessAsync 在同进程写后读，即使没有 Full Access 也会误报 true。
         if let value = systemHasFullAccess {
             hasFullAccess = value
-        } else {
-            probeFullAccessAsync()
         }
 
         SharedLogger.info("环境检查: fullAccess=\(hasFullAccess)")
@@ -194,6 +196,18 @@ final class KeyboardState {
 
     // MARK: - IPC Polling
 
+    /// beta.61: 键盘进程启动时，把当前已存在的 result_id 设为基线，
+    /// 这样上一次会话残留的结果不会被当成"新结果"注入（review H3）。
+    private func bootstrapLastResultID() {
+        ipcQueue.async { [weak self] in
+            let existing = AppGroup.sharedDefaults.integer(forKey: AppGroup.ipcResultIDKey)
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                if self.lastResultID == 0 { self.lastResultID = existing }
+            }
+        }
+    }
+
     private func startIPCMonitoringIfNeeded() {
         guard ipcTimer == nil else { return }
 
@@ -222,7 +236,8 @@ final class KeyboardState {
                 errorMessage: defaults.string(forKey: AppGroup.ipcErrorKey),
                 heartbeat: defaults.double(forKey: AppGroup.ipcHeartbeatKey),
                 resultID: defaults.integer(forKey: AppGroup.ipcResultIDKey),
-                resultText: defaults.string(forKey: AppGroup.ipcResultKey)
+                resultText: defaults.string(forKey: AppGroup.ipcResultKey),
+                resultAt: defaults.double(forKey: AppGroup.ipcResultAtKey)
             )
 
             Task { @MainActor [weak self] in
@@ -256,6 +271,17 @@ final class KeyboardState {
            snapshot.resultID != lastResultID,
            let inserted = snapshot.resultText,
            !inserted.isEmpty {
+            // beta.61: 防陈旧/防越界注入（review H3）。结果太旧（或无时间戳）只更新基线、
+            // 清掉残留、不注入——否则上一次会话的转写可能在之后、甚至在别的 App 输入框里凭空出现。
+            let resultAge = snapshot.resultAt > 0
+                ? Date().timeIntervalSince1970 - snapshot.resultAt
+                : .greatestFiniteMagnitude
+            guard resultAge <= Constants.Keyboard.resultStaleAfter else {
+                lastResultID = snapshot.resultID
+                clearResultAsync(expectedID: snapshot.resultID)
+                return
+            }
+
             lastResultID = snapshot.resultID
             clearResultAsync(expectedID: snapshot.resultID)
 
@@ -465,21 +491,6 @@ final class KeyboardState {
         phase = .error("后台录音超时，请打开主程序")
         statusMessage = "后台录音超时，请打开主程序"
         scheduleReset()
-    }
-
-    // MARK: - Permission checks
-
-    private func probeFullAccessAsync() {
-        ipcQueue.async { [weak self] in
-            let probeKey = "vox.keyboard.accessCheck"
-            let defaults = AppGroup.sharedDefaults
-            defaults.set(true, forKey: probeKey)
-            let hasAccess = defaults.object(forKey: probeKey) != nil
-
-            Task { @MainActor [weak self] in
-                self?.hasFullAccess = hasAccess
-            }
-        }
     }
 
     // MARK: - Utils

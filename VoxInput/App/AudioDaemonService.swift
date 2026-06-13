@@ -379,7 +379,19 @@ final class AudioDaemonService {
     private func processAudio(url: URL) async {
         do {
             let (rawText, providerName) = try await transcribeViaPreferredProvider(audioURL: url)
-            let formatted = TextFormatter.format(rawText)
+
+            // beta.61: 键盘路径也尊重翻译设置（review H2：此前 daemon 完全不翻译，
+            // 与主 App 行为不一致）。翻译失败降级为原文，绝不丢弃已识别结果。
+            var processed = rawText
+            if config.translationMode != .none && networkMonitor.isConnected {
+                do {
+                    processed = try await PostProcessor.process(text: rawText, mode: config.translationMode)
+                } catch {
+                    SharedLogger.error("daemon 翻译失败，降级为原文: \(error.localizedDescription)")
+                    processed = rawText
+                }
+            }
+            let formatted = TextFormatter.format(processed)
 
             // 识别成功：删除临时音频
             try? FileManager.default.removeItem(at: url)
@@ -408,13 +420,13 @@ final class AudioDaemonService {
 
     /// Sprint 3: 将临时音频文件复制到 Documents/SavedAudio/ 持久保存
     private func saveAudioToDocuments(tempURL: URL) -> String? {
-        guard let docsDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { return nil }
-        let audioDir = docsDir.appendingPathComponent("SavedAudio", isDirectory: true)
+        guard let audioDir = SavedAudioStore.directory else { return nil }
         try? FileManager.default.createDirectory(at: audioDir, withIntermediateDirectories: true)
         let destURL = audioDir.appendingPathComponent("\(UUID().uuidString).wav")
         do {
             try FileManager.default.copyItem(at: tempURL, to: destURL)
-            return destURL.path
+            // beta.61: 只存文件名，避免容器路径变化导致音频找不到（review M2）
+            return destURL.lastPathComponent
         } catch {
             SharedLogger.error("保存音频失败: \(error.localizedDescription)")
             return nil
@@ -627,6 +639,8 @@ final class AudioDaemonService {
             let nextID = defaults.integer(forKey: AppGroup.ipcResultIDKey) + 1
             defaults.set(text, forKey: AppGroup.ipcResultKey)
             defaults.set(nextID, forKey: AppGroup.ipcResultIDKey)
+            // beta.61: 给结果打时间戳，键盘据此丢弃陈旧结果（review H3）
+            defaults.set(Date().timeIntervalSince1970, forKey: AppGroup.ipcResultAtKey)
             AppGroupDarwinNotification.daemonStateDidChange.post()
         }
     }

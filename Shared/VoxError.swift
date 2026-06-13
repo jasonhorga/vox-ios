@@ -131,4 +131,14 @@ enum VoxError: LocalizedError {
             return "未知错误"
         }
     }
+
+    /// beta.62: 是否值得重试。仅瞬时性错误重试；鉴权缺失/空结果/格式或音频错误重试无意义（review M4）。
+    var isRetryable: Bool {
+        switch self {
+        case .asrTimeout, .asrNetworkError, .networkUnavailable:
+            return true
+        default:
+            return false
+        }
+    }
 }

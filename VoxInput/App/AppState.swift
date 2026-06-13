@@ -121,10 +121,16 @@ final class AppState {
             let translationMode = config.translationMode
             if translationMode != .none && networkMonitor.isConnected {
                 statusMessage = "正在翻译..."
-                processedText = try await PostProcessor.process(
-                    text: rawText,
-                    mode: translationMode
-                )
+                do {
+                    processedText = try await PostProcessor.process(
+                        text: rawText,
+                        mode: translationMode
+                    )
+                } catch {
+                    // beta.61: 翻译失败不丢弃已识别文本，降级为原文输出（review H2）
+                    SharedLogger.error("翻译失败，降级为原文输出: \(error.localizedDescription)")
+                    processedText = rawText
+                }
             }
 
             statusMessage = "正在格式化..."

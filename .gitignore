@@ -21,3 +21,6 @@ fastlane/test_output
 # Bundler
 vendor/bundle
 .bundle
+
+# Superpowers 头脑风暴可视化伴侣产物
+.superpowers/
