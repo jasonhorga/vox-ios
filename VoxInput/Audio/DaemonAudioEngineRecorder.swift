@@ -56,6 +56,9 @@ final class DaemonCaptureSink: @unchecked Sendable {
         converter = nil
         targetFormat = nil
         onError = nil
+        // 取完结果后清空，避免下次（begin 之前）误报上一段的状态
+        received = false
+        runtimeError = nil
         return result
     }
 
