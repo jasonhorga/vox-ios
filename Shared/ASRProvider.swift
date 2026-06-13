@@ -75,7 +75,12 @@ enum ASRRetryHelper {
                 return try await operation()
             } catch {
                 lastError = error
-                
+
+                // beta.62: 取消、或不可重试的错误（鉴权缺失/空结果/格式错误等）立即抛出，
+                // 不再对 401/400/空结果做无谓退避重试（review M4）。
+                if error is CancellationError { throw error }
+                if let voxErr = error as? VoxError, !voxErr.isRetryable { throw error }
+
                 // 最后一次尝试不需要等待
                 if attempt < maxRetries {
                     // 指数退避：0.8s, 1.6s, 3.2s, ...
