@@ -38,8 +38,13 @@ enum Constants {
         static let silenceThresholdDB: Float = -50.0
         /// 静音超时时间（秒），连续静音超过此时间自动停止
         static let silenceTimeout: TimeInterval = 3.0
-        /// 录音临时文件名
+        /// 录音临时文件名（主 App 直录路径 AudioRecorder 专用）
         static let tempFileName = "vox_recording.wav"
+        /// 守护进程录音临时文件名（M3: 与主 App 路径分开，避免两条录音路径并发时互踩同一文件）
+        static let daemonTempFileName = "vox_daemon_recording.wav"
+        /// 最长录音时长（秒）。M7: 由 1h 收紧到 10min——整段录音读进内存再上传，
+        /// 10min ≈ 19MB（16kHz/16bit/mono），既防跑飞内存又极少截断真实口述；到点自动停止。
+        static let maxRecordingDuration: TimeInterval = 600.0
     }
     
     // MARK: - ASR 参数

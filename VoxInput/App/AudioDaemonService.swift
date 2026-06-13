@@ -151,7 +151,8 @@ final class AudioDaemonService {
     /// beta.58: 检查 tmp 目录中是否残留上次崩溃/被强杀的录音文件
     /// 如果存在且大小 > 10KB，说明上次是异常退出，必须抢救音频并写入历史记录
     private func rescueOrphanedRecordingIfNeeded() {
-        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(Constants.Audio.tempFileName)
+        // M3: 守护进程录音落到 daemonTempFileName，崩溃恢复需扫这个文件（不是主 App 直录路径的 tempFileName）
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(Constants.Audio.daemonTempFileName)
         let fm = FileManager.default
 
         guard fm.fileExists(atPath: tempURL.path) else { return }

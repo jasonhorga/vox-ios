@@ -38,11 +38,11 @@ final class DaemonAudioEngineRecorder {
     private var converter: AVAudioConverter?
     private var runtimeError: String?
 
-    /// Sprint 3: 放宽到 1 小时，录音只能由用户手动停止
-    private static let maxRecordingDuration: TimeInterval = 3600.0
+    // 最长录音时长集中在 Constants.Audio.maxRecordingDuration（M7: 由 1h 收紧到 10min，到点自动停止）
 
+    /// M3: 守护进程用独立临时文件名，避免与主 App 直录路径（AudioRecorder）互踩同一文件
     private var tempRecordingURL: URL {
-        FileManager.default.temporaryDirectory.appendingPathComponent(Constants.Audio.tempFileName)
+        FileManager.default.temporaryDirectory.appendingPathComponent(Constants.Audio.daemonTempFileName)
     }
 
     // MARK: - Typeless lifecycle
@@ -226,7 +226,7 @@ final class DaemonAudioEngineRecorder {
     }
 
     private func startTimeoutTimer() {
-        timeoutTimer = Timer.scheduledTimer(withTimeInterval: Self.maxRecordingDuration, repeats: false) { [weak self] _ in
+        timeoutTimer = Timer.scheduledTimer(withTimeInterval: Constants.Audio.maxRecordingDuration, repeats: false) { [weak self] _ in
             guard let self, self.isRecording else { return }
             self.onMaxDurationReached?()
         }
