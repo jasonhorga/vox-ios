@@ -72,7 +72,12 @@ final class SharedConfigStore {
     var qwenModel: String {
         didSet { saveString(qwenModel, forKey: .qwenModel) }
     }
-    
+
+    /// 对话模型名称（智能整理/翻译后处理用，仅 Whisper 兼容端点）
+    var chatModel: String {
+        didSet { saveString(chatModel, forKey: .chatModel) }
+    }
+
     /// 是否已完成首次设置
     var hasCompletedSetup: Bool {
         didSet { saveBool(hasCompletedSetup, forKey: .hasCompletedSetup) }
@@ -123,6 +128,7 @@ final class SharedConfigStore {
         case whisperBaseURL = "vox.asr.whisper.baseurl"
         case whisperModel = "vox.asr.whisper.model"
         case qwenModel = "vox.asr.qwen.model"
+        case chatModel = "vox.postprocess.chatModel"
         case hasCompletedSetup = "vox.app.hasCompletedSetup"
         case language = "vox.asr.language"
         case translationMode = "vox.postprocess.translationMode"
@@ -149,7 +155,10 @@ final class SharedConfigStore {
         
         self.qwenModel = defaults.string(forKey: Key.qwenModel.rawValue)
             ?? "qwen-omni-turbo"
-        
+
+        self.chatModel = defaults.string(forKey: Key.chatModel.rawValue)
+            ?? "gpt-4o-mini"
+
         self.hasCompletedSetup = defaults.bool(forKey: Key.hasCompletedSetup.rawValue)
         
         self.language = defaults.string(forKey: Key.language.rawValue) ?? "auto"
@@ -272,7 +281,10 @@ final class SharedConfigStore {
         
         qwenModel = defaults.string(forKey: Key.qwenModel.rawValue)
             ?? "qwen-omni-turbo"
-        
+
+        chatModel = defaults.string(forKey: Key.chatModel.rawValue)
+            ?? "gpt-4o-mini"
+
         hasCompletedSetup = defaults.bool(forKey: Key.hasCompletedSetup.rawValue)
         
         language = defaults.string(forKey: Key.language.rawValue) ?? "auto"
@@ -311,6 +323,7 @@ final class SharedConfigStore {
         whisperBaseURL = Constants.Network.whisperDefaultURL
         whisperModel = "whisper-1"
         qwenModel = "qwen-omni-turbo"
+        chatModel = "gpt-4o-mini"
         hasCompletedSetup = false
         language = "auto"
         translationMode = .none

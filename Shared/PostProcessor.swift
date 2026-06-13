@@ -83,7 +83,7 @@ enum PostProcessor {
             baseURL = config.whisperBaseURL
                 .replacingOccurrences(of: "/v1/audio/transcriptions", with: "/v1/chat/completions")
                 .replacingOccurrences(of: "/audio/transcriptions", with: "/chat/completions")
-            model = "gpt-4o-mini"
+            model = config.chatModel
         }
         guard !apiKey.isEmpty else { throw VoxError.apiKeyMissing }
 

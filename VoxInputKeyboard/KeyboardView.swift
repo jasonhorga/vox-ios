@@ -94,9 +94,7 @@ struct KeyboardView: View {
 
     private var processingView: some View {
         VStack(spacing: 12) {
-            ProgressView()
-                .controlSize(.large)
-                .tint(.blue)
+            RecordButton(phase: .processing, size: Constants.Keyboard.micButtonSize)
 
             Text(state.statusMessage)
                 .font(.system(size: 14))
@@ -108,9 +106,7 @@ struct KeyboardView: View {
 
     private func doneView(text: String) -> some View {
         VStack(spacing: 8) {
-            Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 32))
-                .foregroundStyle(.green)
+            RecordButton(phase: .done, size: Constants.Keyboard.micButtonSize)
 
             Text(text)
                 .font(.system(size: 14))
