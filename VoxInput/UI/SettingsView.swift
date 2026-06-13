@@ -79,8 +79,10 @@ struct SettingsView: View {
                     }
                 }
                 
-                // MARK: - 翻译模式
+                // MARK: - 后处理（智能整理 + 翻译）
                 Section {
+                    Toggle("智能整理", isOn: $config.smartCleanup)
+
                     Picker("翻译模式", selection: $config.translationMode) {
                         ForEach(TranslationMode.allCases, id: \.self) { mode in
                             Text(mode.displayName).tag(mode)
@@ -89,7 +91,7 @@ struct SettingsView: View {
                 } header: {
                     Text("后处理")
                 } footer: {
-                    Text("识别完成后自动翻译为目标语言（需要消耗额外 API 调用）")
+                    Text("智能整理：用 AI 去掉口头禅、顺语序、按口述意图排版（需联网、消耗 API 调用，离线自动跳过）。翻译：识别完成后翻成目标语言。")
                 }
 
                 // MARK: - 后台语音守护

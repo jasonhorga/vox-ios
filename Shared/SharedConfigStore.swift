@@ -88,6 +88,11 @@ final class SharedConfigStore {
         didSet { saveString(translationMode.rawValue, forKey: .translationMode) }
     }
 
+    /// beta.63: 智能整理（LLM 后处理）开关，默认开
+    var smartCleanup: Bool {
+        didSet { saveBool(smartCleanup, forKey: .smartCleanup) }
+    }
+
     /// 后台语音守护进程待机时长
     var daemonStandbyDuration: DaemonStandbyDuration {
         didSet { saveString(daemonStandbyDuration.rawValue, forKey: .daemonStandbyDuration) }
@@ -121,6 +126,7 @@ final class SharedConfigStore {
         case hasCompletedSetup = "vox.app.hasCompletedSetup"
         case language = "vox.asr.language"
         case translationMode = "vox.postprocess.translationMode"
+        case smartCleanup = "vox.postprocess.smartCleanup"
         case daemonStandbyDuration = "vox.daemon.standbyDuration"
     }
     
@@ -151,6 +157,9 @@ final class SharedConfigStore {
         self.translationMode = TranslationMode(
             rawValue: defaults.string(forKey: Key.translationMode.rawValue) ?? ""
         ) ?? .none
+
+        // 默认开：键不存在时 object(forKey:) 为 nil → 取 true
+        self.smartCleanup = defaults.object(forKey: Key.smartCleanup.rawValue) as? Bool ?? true
 
         self.daemonStandbyDuration = DaemonStandbyDuration(
             rawValue: defaults.string(forKey: Key.daemonStandbyDuration.rawValue) ?? ""
@@ -272,6 +281,8 @@ final class SharedConfigStore {
             rawValue: defaults.string(forKey: Key.translationMode.rawValue) ?? ""
         ) ?? .none
 
+        smartCleanup = defaults.object(forKey: Key.smartCleanup.rawValue) as? Bool ?? true
+
         daemonStandbyDuration = DaemonStandbyDuration(
             rawValue: defaults.string(forKey: Key.daemonStandbyDuration.rawValue) ?? ""
         ) ?? .minutes10
@@ -303,6 +314,7 @@ final class SharedConfigStore {
         hasCompletedSetup = false
         language = "auto"
         translationMode = .none
+        smartCleanup = true
         daemonStandbyDuration = .minutes10
 
         // 清除 Keychain
