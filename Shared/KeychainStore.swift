@@ -125,7 +125,7 @@ enum KeychainStore {
                 kSecReturnData as String: false,
                 kSecMatchLimit as String: kSecMatchLimitOne
             ]
-            
+
             let status = SecItemCopyMatching(query as CFDictionary, nil)
             if status == errSecSuccess {
                 return true
@@ -133,4 +133,20 @@ enum KeychainStore {
         }
         return false
     }
+}
+
+// MARK: - 可注入的密钥存储
+
+/// 抽象密钥存储，便于测试注入（生产=Keychain，测试=内存）
+protocol SecretStore {
+    func read(_ key: KeychainStore.Key) -> String?
+    func write(_ value: String, for key: KeychainStore.Key)
+    func delete(_ key: KeychainStore.Key)
+}
+
+/// 生产实现：直通 KeychainStore（行为与现状完全一致）
+struct KeychainSecretStore: SecretStore {
+    func read(_ key: KeychainStore.Key) -> String? { KeychainStore.read(key: key) }
+    func write(_ value: String, for key: KeychainStore.Key) { KeychainStore.write(value: value, key: key) }
+    func delete(_ key: KeychainStore.Key) { KeychainStore.delete(key: key) }
 }

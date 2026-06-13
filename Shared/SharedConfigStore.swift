@@ -47,6 +47,10 @@ final class SharedConfigStore {
 
     private let defaults: UserDefaults
 
+    /// 可注入的密钥存储（生产=Keychain 直通；测试=内存）。
+    /// M1: 让 ConfigStoreTests 不再触碰真实 App Group + Keychain。
+    private let secrets: SecretStore
+
     /// beta.61: reload()/批量加载期间置 true，阻止 didSet 把刚读出来的值又写回去。
     /// 修复 review H1：reload 触发 didSet 写回 Keychain，读失败时会把真实 key 抹成 ""。
     @ObservationIgnored private var isLoading = false
@@ -109,7 +113,7 @@ final class SharedConfigStore {
     var qwenAPIKey: String {
         didSet {
             guard !isLoading else { return }
-            KeychainStore.write(value: qwenAPIKey, key: .qwenAPIKey)
+            secrets.write(qwenAPIKey, for: .qwenAPIKey)
         }
     }
 
@@ -117,7 +121,7 @@ final class SharedConfigStore {
     var whisperAPIKey: String {
         didSet {
             guard !isLoading else { return }
-            KeychainStore.write(value: whisperAPIKey, key: .whisperAPIKey)
+            secrets.write(whisperAPIKey, for: .whisperAPIKey)
         }
     }
     
@@ -138,10 +142,11 @@ final class SharedConfigStore {
     
     // MARK: - 初始化
     
-    private init() {
+    init(defaults: UserDefaults = AppGroup.sharedDefaults, secrets: SecretStore = KeychainSecretStore()) {
         // 使用 App Group UserDefaults
-        self.defaults = AppGroup.sharedDefaults
-        
+        self.defaults = defaults
+        self.secrets = secrets
+
         // 从 App Group UserDefaults 加载非敏感配置
         self.asrProvider = ASRProviderType(
             rawValue: defaults.string(forKey: Key.asrProvider.rawValue) ?? ""
@@ -175,8 +180,8 @@ final class SharedConfigStore {
         ) ?? .minutes10
 
         // 从 Keychain 加载 API Key
-        self.qwenAPIKey = KeychainStore.read(key: .qwenAPIKey) ?? ""
-        self.whisperAPIKey = KeychainStore.read(key: .whisperAPIKey) ?? ""
+        self.qwenAPIKey = secrets.read(.qwenAPIKey) ?? ""
+        self.whisperAPIKey = secrets.read(.whisperAPIKey) ?? ""
     }
     
     // MARK: - 计算属性
@@ -245,14 +250,14 @@ final class SharedConfigStore {
         let oldWhisperKey = "vox.asr.whisper.apikey"
         
         if let qwenKey = oldDefaults.string(forKey: oldQwenKey), !qwenKey.isEmpty {
-            KeychainStore.write(value: qwenKey, key: .qwenAPIKey)
+            secrets.write(qwenKey, for: .qwenAPIKey)
             self.qwenAPIKey = qwenKey
             // 清除旧存储中的明文 Key
             oldDefaults.removeObject(forKey: oldQwenKey)
         }
-        
+
         if let whisperKey = oldDefaults.string(forKey: oldWhisperKey), !whisperKey.isEmpty {
-            KeychainStore.write(value: whisperKey, key: .whisperAPIKey)
+            secrets.write(whisperKey, for: .whisperAPIKey)
             self.whisperAPIKey = whisperKey
             oldDefaults.removeObject(forKey: oldWhisperKey)
         }
@@ -301,8 +306,8 @@ final class SharedConfigStore {
 
         // beta.61: 仅在 Keychain 读取成功时覆盖内存值；读失败返回 nil 时保留原值，
         // 避免把真实 key 抹成 ""（配合 isLoading：reload 期间一律不写回 Keychain）。
-        if let qwen = KeychainStore.read(key: .qwenAPIKey) { qwenAPIKey = qwen }
-        if let whisper = KeychainStore.read(key: .whisperAPIKey) { whisperAPIKey = whisper }
+        if let qwen = secrets.read(.qwenAPIKey) { qwenAPIKey = qwen }
+        if let whisper = secrets.read(.whisperAPIKey) { whisperAPIKey = whisper }
     }
 
     private func saveString(_ value: String, forKey key: Key) {
@@ -331,7 +336,7 @@ final class SharedConfigStore {
         daemonStandbyDuration = .minutes10
 
         // 清除 Keychain
-        KeychainStore.delete(key: .qwenAPIKey)
-        KeychainStore.delete(key: .whisperAPIKey)
+        secrets.delete(.qwenAPIKey)
+        secrets.delete(.whisperAPIKey)
     }
 }
