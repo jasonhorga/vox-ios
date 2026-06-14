@@ -77,11 +77,19 @@ struct SettingsView: View {
                         TextField("对话模型（整理/翻译用）", text: $chatModelInput)
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
+
+                        Button {
+                            applyGroqPreset()
+                        } label: {
+                            Label("使用 Groq 推荐配置（免费额度大）", systemImage: "sparkles")
+                        }
                     } header: {
                         Text("Whisper API 配置")
                     } footer: {
                         Text("支持 OpenAI Whisper 及兼容接口（Groq 等）。"
-                            + "对话模型用于智能整理/翻译后处理，需所选端点支持该 Chat 模型。")
+                            + "对话模型用于智能整理/翻译后处理，需所选端点支持该 Chat 模型。\n\n"
+                            + "推荐 Groq：转写又快又准、免费额度大（约 2000 次/天）。点上面按钮一键填入端点与模型，"
+                            + "再到 \(Constants.Network.groqConsoleURL) 免费申请 API Key 填进上方即可。")
                     }
                 }
                 
@@ -186,6 +194,14 @@ struct SettingsView: View {
     
     // MARK: - 数据操作
     
+    /// 一键填入 Groq 推荐配置（端点 + 转写模型 + 对话模型）；API Key 仍需用户自行填写。
+    /// 仅改输入框，未点「保存」不会落库。
+    private func applyGroqPreset() {
+        whisperURLInput = Constants.Network.groqTranscriptionURL
+        whisperModelInput = Constants.Network.groqTranscriptionModel
+        chatModelInput = Constants.Network.groqChatModel
+    }
+
     /// 从 ConfigStore 加载当前值
     private func loadCurrentValues() {
         qwenKeyInput = config.qwenAPIKey
