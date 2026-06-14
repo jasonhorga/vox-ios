@@ -68,6 +68,16 @@ enum Constants {
         static let qwenBaseURL = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
         /// Whisper API 默认地址
         static let whisperDefaultURL = "https://api.openai.com/v1/audio/transcriptions"
+
+        // MARK: - Groq 推荐预设（OpenAI 兼容端点；免费额度大、低延迟，转写+整理都能白嫖）
+        /// Groq 转写端点（Whisper 兼容）
+        static let groqTranscriptionURL = "https://api.groq.com/openai/v1/audio/transcriptions"
+        /// Groq 推荐转写模型
+        static let groqTranscriptionModel = "whisper-large-v3-turbo"
+        /// Groq 推荐对话模型（用于智能整理/翻译后处理）
+        static let groqChatModel = "llama-3.3-70b-versatile"
+        /// 取 Groq API Key 的地址（展示用）
+        static let groqConsoleURL = "https://console.groq.com/keys"
     }
     
     // MARK: - 剪贴板

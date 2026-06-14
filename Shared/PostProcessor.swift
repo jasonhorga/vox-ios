@@ -80,9 +80,8 @@ enum PostProcessor {
             model = "qwen-plus"
         case .whisper:
             apiKey = config.whisperAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
-            baseURL = config.whisperBaseURL
-                .replacingOccurrences(of: "/v1/audio/transcriptions", with: "/v1/chat/completions")
-                .replacingOccurrences(of: "/audio/transcriptions", with: "/chat/completions")
+            // 转写端点改写成 chat completions 端点（OpenAI/Groq 等兼容端点通用）
+            baseURL = chatCompletionsURL(fromTranscriptionURL: config.whisperBaseURL)
             model = config.chatModel
         }
         guard !apiKey.isEmpty else { throw VoxError.apiKeyMissing }
@@ -96,8 +95,16 @@ enum PostProcessor {
         )
     }
 
+    /// 把 Whisper 兼容的「转写端点」URL 推导成「chat completions 端点」URL。
+    /// OpenAI(`api.openai.com/v1/audio/transcriptions`)、Groq(`api.groq.com/openai/v1/audio/transcriptions`)
+    /// 等兼容端点通用——纯函数，可单测。
+    static func chatCompletionsURL(fromTranscriptionURL url: String) -> String {
+        url.replacingOccurrences(of: "/v1/audio/transcriptions", with: "/v1/chat/completions")
+            .replacingOccurrences(of: "/audio/transcriptions", with: "/chat/completions")
+    }
+
     // MARK: - LLM 调用
-    
+
     /// 调用 LLM Chat Completions API
     private static func callLLM(
         text: String,
